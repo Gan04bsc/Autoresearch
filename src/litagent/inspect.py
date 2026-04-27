@@ -117,7 +117,7 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
         selected_concerns.append("No selected papers are available.")
     else:
         low_relevance = [
-            row for row in selected if float(row.get("relevance_score") or 0.0) < 0.35
+            row for row in selected if float(row.get("relevance_score") or 0.0) < 0.25
         ]
         if low_relevance:
             selected_concerns.append(

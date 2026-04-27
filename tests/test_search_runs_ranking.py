@@ -78,6 +78,7 @@ def test_topic_sensitive_ranking_explains_positive_and_negative_matches() -> Non
     off_topic_score = score_paper(off_topic, plan)
 
     assert relevant_score["final_score"] > off_topic_score["final_score"]
+    assert relevant_score["relevance_score"] >= 0.25
     assert relevant_score["score_explanation"]["matched_terms"]["high_value_title"]
     assert off_topic_score["score_explanation"]["matched_terms"]["negative_title"]
     assert off_topic_score["exclusion_score"] > 0

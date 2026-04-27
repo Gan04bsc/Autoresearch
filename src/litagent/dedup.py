@@ -197,14 +197,14 @@ def score_paper(paper: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     keyword_score, keyword_title_matches, keyword_abstract_matches = weighted_term_matches(
         scored,
         [str(value) for value in plan.get("include_keywords", [])],
-        max_terms=16,
+        max_terms=4,
     )
     high_value_score, high_value_title_matches, high_value_abstract_matches = (
-        weighted_term_matches(scored, HIGH_VALUE_PHRASES, max_terms=10)
+        weighted_term_matches(scored, HIGH_VALUE_PHRASES, max_terms=4)
     )
     negative_terms = [*DEFAULT_NEGATIVE_TERMS, *[str(v) for v in plan.get("exclude_keywords", [])]]
     exclusion, negative_title_matches, negative_abstract_matches = weighted_term_matches(
-        scored, negative_terms, max_terms=12
+        scored, negative_terms, max_terms=4
     )
     importance = importance_score(scored)
     recency = recency_score(scored, from_year, to_year)

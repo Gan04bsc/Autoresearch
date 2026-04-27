@@ -22,8 +22,7 @@ def paper_text(paper: dict[str, Any]) -> str:
 
 
 def score_reason(paper: dict[str, Any]) -> str:
-    explanation = paper.get("score_explanation") or {}
-    terms = (explanation.get("matched_terms") or {}) if isinstance(explanation, dict) else {}
+    terms = matched_terms(paper)
     high_value = [*terms.get("high_value_title", []), *terms.get("high_value_abstract", [])]
     include = [*terms.get("include_title", []), *terms.get("include_abstract", [])]
     negative = [*terms.get("negative_title", []), *terms.get("negative_abstract", [])]
@@ -39,9 +38,29 @@ def score_reason(paper: dict[str, Any]) -> str:
     return "; ".join(parts)
 
 
+def matched_terms(paper: dict[str, Any]) -> dict[str, list[str]]:
+    explanation = paper.get("score_explanation") or {}
+    terms = (explanation.get("matched_terms") or {}) if isinstance(explanation, dict) else {}
+    return {
+        "high_value_title": list(terms.get("high_value_title", [])),
+        "high_value_abstract": list(terms.get("high_value_abstract", [])),
+        "include_title": list(terms.get("include_title", [])),
+        "include_abstract": list(terms.get("include_abstract", [])),
+        "negative_title": list(terms.get("negative_title", [])),
+        "negative_abstract": list(terms.get("negative_abstract", [])),
+    }
+
+
 def classify_selection_concern(paper: dict[str, Any]) -> tuple[str, list[str]]:
     relevance = float(paper.get("relevance_score") or 0.0)
     negative = float(paper.get("exclusion_score") or 0.0)
+    terms = matched_terms(paper)
+    positive_matches = [
+        *terms["high_value_title"],
+        *terms["high_value_abstract"],
+        *terms["include_title"],
+        *terms["include_abstract"],
+    ]
     reasons = [score_reason(paper)]
 
     if not paper.get("abstract"):
@@ -51,10 +70,13 @@ def classify_selection_concern(paper: dict[str, Any]) -> tuple[str, list[str]]:
     if negative >= 0.25:
         reasons.append(f"negative-term score is high ({negative:.2f})")
         return "likely_off_topic", reasons
-    if relevance < 0.25:
+    if not positive_matches and relevance < 0.20:
+        reasons.append(f"low relevance score ({relevance:.2f}) with no positive term evidence")
+        return "likely_off_topic", reasons
+    if relevance < 0.15:
         reasons.append(f"low relevance score ({relevance:.2f})")
         return "likely_off_topic", reasons
-    if relevance < 0.45 or negative >= 0.15:
+    if relevance < 0.25 or negative >= 0.15:
         reasons.append(f"needs inspection: relevance={relevance:.2f}, negative={negative:.2f}")
         return "questionable", reasons
     return "likely_relevant", reasons

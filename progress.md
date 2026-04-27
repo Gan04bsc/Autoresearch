@@ -86,6 +86,23 @@
 - Recommended next real run is a new `./demo-real-v2` workspace with Semantic Scholar API key if
   available, local pypdf parsing first, MinerU reserved for OCR/complex-layout/table-heavy PDFs,
   `review-selection` before download, and `inspect-workspace` after audit.
+- Ran the small v2 real review in `./demo-real-v2` for `多智能体文献综述自动化工具` with search run
+  `demo-real-v2-initial`.
+- Real search returned 111 raw records and 94 deduplicated papers from arXiv/OpenAlex; Semantic
+  Scholar was attempted but returned HTTP 429 because no API key was configured.
+- Calibrated topic-sensitive ranking and review-selection after the run showed sparse high-value
+  matches were being diluted by long include-term lists.
+- Refined the plan terms for this workspace to include `multi-agent framework`, `citation graph`,
+  `hierarchical citation graph`, `paper-reading agents`, `PaperGuide`, and `PaperCompass`, which
+  brought PaperGuide into the selected set and removed broad high-citation review papers.
+- Final `./demo-real-v2` selection has 8 likely relevant papers, 0 questionable papers, 0 likely
+  off-topic papers, and covers survey generation, systematic-review automation, paper-reading
+  agents, citation-aware synthesis, and evaluation/benchmarking.
+- Download and local pypdf parse succeeded for 8/8 selected papers; notes used parsed Markdown for
+  8/8 with 0 abstract fallback.
+- Manually strengthened `./demo-real-v2/reports/final_report.md` using parsed Markdown evidence so
+  it reads as a roadmap-style synthesis instead of only a deterministic template.
+- `litagent inspect-workspace ./demo-real-v2 --json` labels the workspace `small_real_review`.
 
 ## Validation
 
@@ -124,6 +141,17 @@
 - Passed: `litagent inspect-workspace ./demo-real-small --json`; it now labels the workspace
   `small_real_review` with 8/8 parsed Markdown, 0 abstract-fallback notes, and only a source
   imbalance search warning.
+- Passed: `litagent review-selection ./demo-real-v2 --json`; it reported 8 likely relevant papers,
+  0 questionable papers, 0 likely off-topic papers, and no missing subtopics.
+- Passed: `litagent download ./demo-real-v2` downloaded 8/8 legal open PDFs.
+- Passed: `litagent parse ./demo-real-v2 --mineru-mode off` parsed 8/8 PDFs with local pypdf.
+- Passed: `litagent audit ./demo-real-v2` after manual report improvement.
+- Passed: `litagent inspect-workspace ./demo-real-v2 --json`; it reports `small_real_review`,
+  100% parse success, 8 notes from parsed Markdown, and 0 abstract fallback notes.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 34 tests after
+  relevance/review/inspect calibration.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after relevance/review/inspect
+  calibration.
 
 ## Known Issues
 
@@ -139,15 +167,16 @@
 - MinerU precision API requires `MINERU_API_TOKEN`; large/complex PDFs should use `--mineru-mode precision`.
 - There is no LLM-backed reader yet; notes and reports are conservative deterministic summaries based on metadata, abstracts, and selected paper IDs.
 - Historical `./demo-agent-mock` logs still contain the earlier 5 local parse skips from before `pypdf` was installed, but rerunning download/parse/read/report/audit produced 5/5 parsed Markdown files and notes from parsed Markdown.
-- Semantic Scholar can return 429 rate limits without an API key, so the next real run should set a
-  Semantic Scholar key when available and treat OpenAlex dominance as a warning to inspect.
+- Semantic Scholar returned 429 during `./demo-real-v2` without an API key, so the next real run
+  should set `SEMANTIC_SCHOLAR_API_KEY` when available and treat OpenAlex dominance as a warning
+  to inspect.
 - Local pypdf parsing works for text PDFs but is not sufficient for complex layout, OCR-heavy, or
   table-heavy papers; reserve MinerU for those cases.
 
 ## Next Task
 
-Run a small v2 real review in `./demo-real-v2` with `max_papers=8`, real API search, Semantic
-Scholar API key if available, pypdf local parsing first, `review-selection` before download, and
-`inspect-workspace` after audit. Then improve the reader to use parsed Markdown sections more
-deeply instead of abstract-heavy deterministic notes.
+Improve the reader to use parsed Markdown sections more deeply instead of abstract-heavy
+deterministic notes, then add evidence-table artifacts for claim-to-paper support. For the next
+larger real review, use a fresh workspace, configure `SEMANTIC_SCHOLAR_API_KEY`, and expand only
+after `review-selection` remains clean.
 
