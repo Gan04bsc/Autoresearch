@@ -103,6 +103,20 @@
 - Manually strengthened `./demo-real-v2/reports/final_report.md` using parsed Markdown evidence so
   it reads as a roadmap-style synthesis instead of only a deterministic template.
 - `litagent inspect-workspace ./demo-real-v2 --json` labels the workspace `small_real_review`.
+- Improved the deterministic reader so notes separate metadata/abstract content from parsed
+  full-text evidence across problem, method, agent roles, pipeline stages, retrieval/search,
+  citation/evidence handling, evaluation, datasets/benchmarks, findings, limitations, and relevance.
+- Added `litagent build-evidence WORKSPACE --json` and MCP tool `litagent_build_evidence`.
+  Evidence artifacts are written to `knowledge/evidence_table.md` and
+  `knowledge/evidence_table.json`.
+- Updated the pipeline to run `build-evidence` after `build-knowledge` and before report
+  generation.
+- Updated report generation to use paper notes, knowledge outputs, and the evidence table for
+  explicit claim-to-paper support, synthesis themes, comparison tables, design implications,
+  roadmap, and remaining evidence gaps.
+- Audit and `inspect-workspace` now warn when the evidence table is missing, notes remain
+  abstract-level despite parsed Markdown, reports have too few unique paper references, or generic
+  claims appear without paper support.
 
 ## Validation
 
@@ -152,6 +166,14 @@
   relevance/review/inspect calibration.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after relevance/review/inspect
   calibration.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 39 tests after
+  evidence-table, reader, report, audit, and inspect updates.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after evidence-grounding
+  updates.
+- Passed: non-network validation on `./demo-real-v2`: `litagent read`, `litagent build-knowledge`,
+  `litagent build-evidence --json`, `litagent report`, `litagent audit`, and
+  `litagent inspect-workspace --json`. Inspect reports `small_real_review`, 8/8 parsed Markdown,
+  8/8 notes with parsed full-text evidence, 0 abstract fallback notes, and no quality concerns.
 
 ## Known Issues
 
@@ -165,7 +187,9 @@
 - DOI PDF lookup through Unpaywall requires `UNPAYWALL_EMAIL` or `LITAGENT_CONTACT_EMAIL`.
 - MinerU Agent lightweight API is IP rate-limited; failed or timed-out parses are logged and do not stop the pipeline.
 - MinerU precision API requires `MINERU_API_TOKEN`; large/complex PDFs should use `--mineru-mode precision`.
-- There is no LLM-backed reader yet; notes and reports are conservative deterministic summaries based on metadata, abstracts, and selected paper IDs.
+- There is no LLM-backed reader yet. Notes and reports now use parsed-Markdown evidence, but
+  extraction is still deterministic and can select noisy snippets from headers, captions, or
+  reference-adjacent text.
 - Historical `./demo-agent-mock` logs still contain the earlier 5 local parse skips from before `pypdf` was installed, but rerunning download/parse/read/report/audit produced 5/5 parsed Markdown files and notes from parsed Markdown.
 - Semantic Scholar returned 429 during `./demo-real-v2` without an API key, so the next real run
   should set `SEMANTIC_SCHOLAR_API_KEY` when available and treat OpenAlex dominance as a warning
@@ -175,8 +199,7 @@
 
 ## Next Task
 
-Improve the reader to use parsed Markdown sections more deeply instead of abstract-heavy
-deterministic notes, then add evidence-table artifacts for claim-to-paper support. For the next
-larger real review, use a fresh workspace, configure `SEMANTIC_SCHOLAR_API_KEY`, and expand only
-after `review-selection` remains clean.
+For the next larger real review, use a fresh workspace, configure `SEMANTIC_SCHOLAR_API_KEY`, and
+expand only after `review-selection`, parse quality, evidence table generation, audit, and
+`inspect-workspace` all remain clean.
 

@@ -31,11 +31,12 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
 10. Inspect parsing and download failures.
 11. Read notes and parsed Markdown.
 12. Build knowledge files.
-13. Draft or revise the final report.
-14. Run audit.
-15. Run `litagent inspect-workspace WORKSPACE --json` when available to judge whether the
+13. Build evidence artifacts with `litagent build-evidence WORKSPACE --json`.
+14. Draft or revise the final report from paper notes, knowledge files, and the evidence table.
+15. Run audit.
+16. Run `litagent inspect-workspace WORKSPACE --json` when available to judge whether the
     workspace is only smoke-test quality or ready for real-review use.
-16. Fix issues before final response.
+17. Fix issues before final response.
 
 ## Rules
 
@@ -52,8 +53,9 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
 - Do not delete user files.
 - If requirements are ambiguous, make a reasonable decision and document it in `progress.md`.
 - Audit passing is not enough by itself. If parsing failed, notes used abstract fallback, selected
-  papers look weak, or the report reads like a shallow metadata summary, Codex must flag that and
-  improve the workspace before treating the output as a real literature review.
+  papers look weak, the evidence table is missing, or the report reads like a shallow metadata
+  summary without paper-specific support, Codex must flag that and improve the workspace before
+  treating the output as a real literature review.
 
 ## Development Commands
 
@@ -63,6 +65,7 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
 - MCP server: `litagent-mcp`
 - Inspect: `litagent inspect-workspace WORKSPACE --json`
 - Selection review: `litagent review-selection WORKSPACE --json`
+- Evidence table: `litagent build-evidence WORKSPACE --json`
 - Dedup latest search run: `litagent dedup WORKSPACE --search-scope latest --max-papers N`
 
 ## Definition of Done
@@ -76,3 +79,5 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
   parse success rate, and note source counts are reported.
 - Search refinements are traceable and do not silently mix stale raw results into the latest
   selection.
+- Real-review reports use the preferred synthesis path:
+  `read -> build-knowledge -> build-evidence -> report -> audit -> inspect-workspace`.

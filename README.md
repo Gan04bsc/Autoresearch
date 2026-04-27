@@ -28,6 +28,7 @@ litagent parse ./my-topic --mineru-mode auto
 litagent classify ./my-topic
 litagent read ./my-topic
 litagent build-knowledge ./my-topic
+litagent build-evidence ./my-topic --json
 litagent report ./my-topic
 litagent audit ./my-topic
 litagent status ./my-topic --json
@@ -71,6 +72,34 @@ litagent review-selection ./my-topic --json
 This reports likely relevant papers, questionable papers, likely off-topic papers, source/year
 distributions, missing subtopics, and the recommended next action.
 
+## Evidence-Grounded Notes and Reports
+
+After parsing PDFs, the preferred synthesis path is:
+
+```bash
+litagent read ./my-topic
+litagent build-knowledge ./my-topic
+litagent build-evidence ./my-topic --json
+litagent report ./my-topic
+litagent audit ./my-topic
+litagent inspect-workspace ./my-topic --json
+```
+
+`litagent read` now separates metadata/abstract-derived content from parsed-full-text-derived
+evidence. Notes attempt to extract problem, method, agent roles, pipeline stages, retrieval
+strategy, citation/evidence handling, evaluation setup, datasets or benchmarks, findings,
+limitations, and relevance to multi-agent literature review automation.
+
+`litagent build-evidence WORKSPACE --json` creates:
+
+- `knowledge/evidence_table.md`
+- `knowledge/evidence_table.json`
+
+The evidence table maps synthesis themes to supporting papers, snippets or sections, confidence,
+and gaps. `litagent report` uses this table to make claim-to-paper support explicit. Audit and
+inspection warn when the evidence table is missing, notes remain abstract-level despite parsed
+Markdown, or the report has too few paper-specific references.
+
 ## MinerU PDF Parsing
 
 `litagent parse` writes parsed PDF Markdown to `library/markdown/{paper_id}.md`, updates
@@ -96,15 +125,18 @@ ignored by `.gitignore`.
 
 ## Audit and Workspace Inspection
 
-`litagent audit WORKSPACE` checks required files, traceable report citations, and parse quality.
-The audit report includes selected paper count, downloaded PDF count, parsed Markdown count, parse
-success rate, and notes generated from parsed Markdown versus abstract fallback.
+`litagent audit WORKSPACE` checks required files, traceable report citations, parse quality, and
+evidence-grounding signals. The audit report includes selected paper count, downloaded PDF count,
+parsed Markdown count, parse success rate, notes generated from parsed Markdown versus abstract
+fallback, notes with parsed full-text evidence, and report reference counts.
 
 `litagent inspect-workspace WORKSPACE --json` is agent-facing quality guidance. It labels a
 workspace as `smoke_test_run`, `small_real_review`, `source_diverse_real_review`, or
 `production_quality_review`; summarizes search and selection concerns; reports
 parse/report/audit concerns; and recommends the next action. Source imbalance is a warning, not by
 itself a reason to downgrade an otherwise successful small real review to smoke-test quality.
+Missing evidence tables, shallow notes, and generic unsupported report claims are treated as
+quality concerns.
 
 ## Codex-Orchestrated Mode
 
@@ -128,17 +160,18 @@ The MCP server can also be launched directly:
 python -m litagent.mcp_server
 ```
 
-Recommended next v2 real run:
+Recommended next broader real run:
 
 ```text
-Use $litagent-researcher to run a small real-mode literature review for "多智能体文献综述自动化工具"
-in ./demo-real-v2 with max_papers=8. Use real API search, configure/use a Semantic Scholar API key
-if available, do not use mock mode, download only legal open-access PDFs, parse first with local
-pypdf (`--mineru-mode off`), and reserve MinerU for complex/OCR/table-heavy PDFs only. Start with
-status or inspect-workspace, create and inspect the plan, run search, inspect raw results, dedup the
-latest search run only, run review-selection before download, refine if selection is weak, then
-download/parse/classify/read/build-knowledge/report/audit and inspect-workspace after audit. Do not
-accept audit pass alone if the report is shallow; improve the report from parsed notes and Markdown.
+Use $litagent-researcher to run a broader real-mode literature review for
+`多智能体文献综述自动化工具` in a fresh workspace after `SEMANTIC_SCHOLAR_API_KEY` is configured.
+Use real API search, no mock mode, legal open-access PDFs only, local pypdf parsing first, and
+MinerU only for OCR/complex-layout/table-heavy PDFs. Start with status/inspect, create and inspect
+a focused plan, search with a clear run_id, inspect raw results, dedup latest search run only, run
+review-selection before download, refine if needed, then download, parse, classify, read,
+build-knowledge, build-evidence, report, audit, and inspect-workspace. Do not accept the run unless
+selection quality, parse quality, evidence table, audit, inspect label, and report quality are all
+acceptable.
 ```
 
 ## VS Code Reopen in Container

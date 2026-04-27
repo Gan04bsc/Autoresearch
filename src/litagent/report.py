@@ -113,6 +113,45 @@ def failed_download_lines(papers: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+def load_evidence_rows(workspace: Path) -> list[dict[str, Any]]:
+    evidence = read_json(workspace / "knowledge" / "evidence_table.json", default={}) or {}
+    rows = evidence.get("themes") or []
+    return rows if isinstance(rows, list) else []
+
+
+def row_refs(row: dict[str, Any]) -> str:
+    return ", ".join(f"[{paper_id}]" for paper_id in row.get("supporting_papers", []))
+
+
+def evidence_by_theme(rows: list[dict[str, Any]], theme: str) -> dict[str, Any]:
+    for row in rows:
+        if row.get("theme") == theme:
+            return row
+    return {"theme": theme, "claim": "Evidence table missing this theme.", "supporting_papers": []}
+
+
+def representative_snippet(row: dict[str, Any]) -> str:
+    snippets = row.get("evidence_snippets_or_sections") or []
+    if not snippets:
+        return "No extracted snippet."
+    item = snippets[0]
+    return f"{item.get('snippet')} [{item.get('paper_id')}]"
+
+
+def supported_claim(row: dict[str, Any]) -> str:
+    refs_text = row_refs(row)
+    return f"- {row.get('claim')} {refs_text or '[evidence gap]'}"
+
+
+def paper_evidence_summary(paper: dict[str, Any], rows: list[dict[str, Any]]) -> str:
+    themes = [
+        row["theme"]
+        for row in rows
+        if paper["paper_id"] in set(row.get("supporting_papers") or [])
+    ]
+    return ", ".join(themes[:4]) or "No evidence-table theme"
+
+
 def generate_final_report(workspace: Path) -> str:
     plan = read_json(workspace / "research_plan.json", default={}) or {}
     papers = [
@@ -120,20 +159,17 @@ def generate_final_report(workspace: Path) -> str:
     ]
     grouped = grouped_by_type(papers)
     method_groups = grouped_by_method(papers)
-    top_ids = refs(papers, limit=5)
+    evidence_rows = load_evidence_rows(workspace)
     search_queries = plan.get("search_queries") or {}
-    systems = [paper for paper in papers if paper.get("paper_type") == "system"] or papers
-    citation_graph_papers = [
-        paper for paper in papers if has_terms(paper, ["citation graph", "citation-aware"])
-    ]
-    evaluation_papers = [
-        paper
-        for paper in papers
-        if has_terms(paper, ["benchmark", "evaluation", "evaluated", "dataset", "baselines"])
-    ]
-    paper_reading = [
-        paper for paper in papers if has_terms(paper, ["paper-reading", "paper reading"])
-    ]
+
+    architecture = evidence_by_theme(evidence_rows, "multi-agent architecture")
+    generation = evidence_by_theme(evidence_rows, "survey/literature review generation")
+    systematic = evidence_by_theme(evidence_rows, "systematic review workflow")
+    paper_reading = evidence_by_theme(evidence_rows, "paper reading agents")
+    citation = evidence_by_theme(evidence_rows, "citation-aware synthesis")
+    evaluation = evidence_by_theme(evidence_rows, "evaluation and benchmarks")
+    limitations = evidence_by_theme(evidence_rows, "limitations and open problems")
+    design = evidence_by_theme(evidence_rows, "design implications for litagent")
 
     lines = [
         "# Final Research Report",
@@ -141,30 +177,22 @@ def generate_final_report(workspace: Path) -> str:
         "## Executive Summary",
         "",
         f"This report summarizes `{plan.get('topic', 'the topic')}` using {len(papers)} selected "
-        f"papers. The strongest evidence base in this run is {top_ids}.",
-        "",
-        (
-            "The selected set is best read as a map of agentic literature-review systems: "
-            "papers decompose review work into retrieval, screening, reading, planning, "
-            "evidence organization, writing, critique, and citation-aware synthesis."
-        ),
+        f"papers and the generated evidence table. {refs(papers, limit=5)}",
+        supported_claim(architecture),
+        supported_claim(generation),
+        supported_claim(citation),
         "",
         "## Field Background",
         "",
-        (
-            "Literature review automation is shifting from one-shot summarization toward "
-            "orchestrated workflows. In the selected papers, the important design question is "
-            "how systems preserve search coverage, citation grounding, long-form coherence, "
-            "and human inspectability while using LLMs or agents to reduce manual review work."
-        ),
+        supported_claim(generation),
+        supported_claim(systematic),
+        supported_claim(paper_reading),
         "",
         "## Core Problems",
         "",
         *[f"- {question}" for question in plan.get("core_questions", [])],
-        "- How should literature review work be split across retrieval, reading, planning, "
-        f"writing, evidence checking, and revision agents? {top_ids}",
-        "- How can generated synthesis remain traceable to source papers and citations? "
-        f"{refs(citation_graph_papers or papers, limit=4)}",
+        supported_claim(citation),
+        supported_claim(evaluation),
         "",
         "## Technical Route Categories",
         "",
@@ -177,89 +205,92 @@ def generate_final_report(workspace: Path) -> str:
             "",
             "## Taxonomy Of Methods",
             "",
-            "- Plan-and-write systems generate outlines, sections, reviews, and revisions as "
-            f"separate stages. {refs(systems, limit=5)}",
-            "- Evidence-structured systems organize citations, graphs, minigraphs, or extracted "
-            f"claims before final synthesis. {refs(citation_graph_papers or papers, limit=4)}",
-            "- Review-workflow systems emphasize screening, relevance scoring, extraction, "
-            f"rounds, and human feedback. {refs(papers, limit=4)}",
-            "- Paper-reading and comparative-summary agents isolate reusable subtasks that can "
-            f"feed larger review pipelines. {refs(paper_reading or papers, limit=3)}",
+            supported_claim(architecture),
+            supported_claim(generation),
+            supported_claim(systematic),
+            supported_claim(paper_reading),
+            supported_claim(citation),
+            supported_claim(evaluation),
             "",
             "## Representative Papers",
             "",
-            "| Paper ID | Title | Year | Role in This Review | Why It Matters |",
+            "| Paper ID | Title | Year | Type | Evidence Themes |",
             "| --- | --- | ---: | --- | --- |",
-            *[
-                (
-                    f"| {paper['paper_id']} | {markdown_cell(paper.get('title'))} | "
-                    f"{paper.get('year') or ''} | {method_role(paper)} | {why_it_matters(paper)} |"
-                )
-                for paper in papers
-            ],
+        ]
+    )
+    for paper in papers:
+        lines.append(
+            f"| {paper['paper_id']} | {markdown_cell(paper.get('title'))} | "
+            f"{paper.get('year') or ''} | {paper.get('paper_type') or 'unknown'} | "
+            f"{markdown_cell(paper_evidence_summary(paper, evidence_rows))} |"
+        )
+
+    lines.extend(
+        [
             "",
             "## Comparison Of Selected Systems",
             "",
-            *[
-                (
-                    f"- {paper.get('title')} is treated as `{method_role(paper)}`. "
-                    f"{first_sentence(paper.get('abstract'), fallback='No abstract available.')} "
-                    f"{paper_ref(paper)}"
-                )
-                for paper in papers
-            ],
+            "| Paper ID | Role | Evidence-Backed Interpretation |",
+            "| --- | --- | --- |",
+        ]
+    )
+    for paper in papers:
+        lines.append(
+            f"| {paper['paper_id']} | {method_role(paper)} | "
+            f"{markdown_cell(why_it_matters(paper))} {paper_ref(paper)} |"
+        )
+
+    lines.extend(
+        [
             "",
+            "## Paper Comparison Table",
+            "",
+            *selected_papers_table(papers),
+            "",
+            "## Evidence-Backed Synthesis Themes",
+            "",
+        ]
+    )
+    if evidence_rows:
+        for row in evidence_rows:
+            refs_text = row_refs(row) or "[evidence gap]"
+            lines.extend(
+                [
+                    f"### {row.get('theme')}",
+                    "",
+                    f"- Claim: {row.get('claim')} {refs_text}",
+                    f"- Confidence: {row.get('confidence')}",
+                    f"- Representative evidence: {representative_snippet(row)}",
+                    f"- Gaps: {'; '.join(row.get('gaps_or_uncertainties') or []) or 'None'}",
+                    "",
+                ]
+            )
+    else:
+        lines.append("- Evidence table is missing; run `litagent build-evidence WORKSPACE --json`.")
+        lines.append("")
+
+    lines.extend(
+        [
             "## Pipeline Patterns Across Papers",
             "",
-            (
-                "- Retrieval and screening appear as upstream gates: weak search or inclusion "
-                f"choices limit every downstream synthesis step. {top_ids}"
-            ),
-            (
-                "- Planning and outline construction are recurring controls for long-form "
-                f"coherence. {refs(papers, limit=5)}"
-            ),
-            (
-                "- Writing, reviewing, and revision are increasingly separate stages rather "
-                f"than a single prompt. {refs(systems, limit=5)}"
-            ),
-            (
-                "- Evidence organization through citation graphs, minigraphs, or extracted "
-                f"paper elements is a key route to traceable synthesis. "
-                f"{refs(citation_graph_papers or papers, limit=4)}"
-            ),
+            supported_claim(architecture),
+            supported_claim(systematic),
+            supported_claim(citation),
             "",
             "## Role Of Multi-Agent Architecture",
             "",
-            (
-                "The multi-agent pattern is useful when roles have different failure modes: "
-                "retrieval agents can miss papers, reader agents can miss evidence, writer "
-                "agents can overgeneralize, and reviewer agents can catch coherence or citation "
-                f"errors. The selected systems use this decomposition to make review work more "
-                f"modular and inspectable. {refs(systems, limit=6)}"
-            ),
+            supported_claim(architecture),
+            f"- Representative snippet: {representative_snippet(architecture)}",
             "",
             "## Citation Graph / Evidence Handling Patterns",
             "",
-            (
-                "- Citation-aware and graph-based systems attempt to preserve relationships "
-                f"among papers before synthesis. {refs(citation_graph_papers or papers, limit=4)}"
-            ),
-            (
-                "- Systems that only generate fluent prose still need external checks for "
-                f"claim-to-paper support and citation coverage. {top_ids}"
-            ),
+            supported_claim(citation),
+            f"- Representative snippet: {representative_snippet(citation)}",
             "",
             "## Evaluation Methods",
             "",
-            *[
-                (
-                    f"- {paper.get('title')} reports or motivates evaluation around benchmarks, "
-                    f"datasets, baselines, citation quality, extraction quality, or generated "
-                    f"review quality. {paper_ref(paper)}"
-                )
-                for paper in (evaluation_papers or papers[:5])
-            ],
+            supported_claim(evaluation),
+            f"- Representative snippet: {representative_snippet(evaluation)}",
             "",
             "## Survey Paper Synthesis",
             "",
@@ -273,22 +304,22 @@ def generate_final_report(workspace: Path) -> str:
         )
     else:
         lines.append(
-            "- No traditional survey paper was selected; this run is mostly system-oriented. "
-            f"The method taxonomy above is synthesized from selected system papers. {top_ids}"
+            "- No traditional survey paper was selected; the survey-level synthesis is built "
+            f"from system and benchmark papers. {row_refs(generation) or refs(papers, limit=5)}"
         )
 
-    lines.extend(["", "## Technical Paper Synthesis", ""])
     technical_like = [
         paper
         for paper in papers
         if paper.get("paper_type") in {"technical", "system", "benchmark", "dataset"}
     ]
-    if technical_like:
-        lines.extend(
-            f"- {paper.get('title')} contributes to `{method_role(paper)}`. {paper_ref(paper)}"
-            for paper in technical_like
-        )
-    else:
+    lines.extend(["", "## Technical Paper Synthesis", ""])
+    lines.extend(
+        f"- {paper.get('title')} contributes to `{method_role(paper)}` and is linked to "
+        f"{paper_evidence_summary(paper, evidence_rows)}. {paper_ref(paper)}"
+        for paper in technical_like
+    )
+    if not technical_like:
         lines.append("- No technical/system/benchmark/dataset papers were selected.")
 
     lines.extend(
@@ -296,80 +327,53 @@ def generate_final_report(workspace: Path) -> str:
             "",
             "## Unresolved Problems",
             "",
-            (
-                "- Evidence traceability and hallucination control need stronger audit loops. "
-                f"{top_ids}"
-            ),
-            (
-                "- Cross-source metadata duplication and inconsistent identifiers need robust "
-                f"merging. {top_ids}"
-            ),
-            (
-                "- Evaluation remains fragmented across generation quality, citation quality, "
-                f"retrieval coverage, screening/extraction quality, and human preference. "
-                f"{refs(evaluation_papers or papers, limit=5)}"
-            ),
-            (
-                "- Complex PDFs, tables, equations, and OCR-heavy documents still require parser "
-                "fallback decisions before synthesis can be trusted."
-            ),
+            supported_claim(limitations),
             "",
             "## Future Research / Innovation Directions",
             "",
-            f"- Build citation-faithfulness benchmarks for final reports. {top_ids}",
+            "- Build claim-to-evidence tables before writing long-form synthesis. "
+            f"{row_refs(design) or refs(papers, limit=5)}",
+            "- Add citation graph extraction and citation-neighborhood expansion. "
+            f"{row_refs(citation) or refs(papers, limit=5)}",
+            "- Evaluate report quality with citation faithfulness, retrieval coverage, and "
+            f"human revision cost. {row_refs(evaluation) or refs(papers, limit=5)}",
+            "",
+            "## Limitations Of Current Literature",
+            "",
+            supported_claim(limitations),
             (
-                "- Add human-in-the-loop review for paper inclusion, classification, and claims. "
-                f"{top_ids}"
-            ),
-            f"- Improve PDF parsing, section extraction, and claim-to-source alignment. {top_ids}",
-            f"- Integrate Zotero/Obsidian workflows and incremental updates. {top_ids}",
-            (
-                "- Compare agentic search strategies across arXiv, Semantic Scholar, and "
-                f"OpenAlex. {top_ids}"
+                "- Current evidence remains partial when the selected set is small or source "
+                f"diversity is limited. {refs(papers, limit=5)}"
             ),
             "",
-            "## Limitations And Research Gaps",
+            "## Explicit Remaining Evidence Gaps",
             "",
-            (
-                "- The selected set may overrepresent sources that are available through the "
-                "current academic APIs; rate limits or source imbalance can hide relevant work."
-            ),
-            (
-                "- Deterministic extraction can identify themes, but human review is still needed "
-                "for nuanced claims, detailed metrics, and implementation comparisons."
-            ),
+        ]
+    )
+    for row in evidence_rows:
+        for gap in row.get("gaps_or_uncertainties") or []:
+            lines.append(f"- {row.get('theme')}: {gap}")
+    if not evidence_rows:
+        lines.append("- Evidence table is missing.")
+
+    lines.extend(
+        [
             "",
             "## Design Implications For Our Tool",
             "",
-            (
-                "- Keep the Codex/orchestrator loop: search terms, selected papers, parse logs, "
-                "notes, and reports should remain inspectable before acceptance."
-            ),
-            (
-                "- Add selection review before download so off-topic high-citation papers do not "
-                "consume parse and synthesis time."
-            ),
-            (
-                "- Store search runs separately and make dedup scope explicit to avoid stale "
-                "refinement results contaminating the selected set."
-            ),
-            (
-                "- Treat citation/evidence structures as first-class artifacts, not just final "
-                "report references."
-            ),
+            supported_claim(design),
+            "- Keep `read -> build-knowledge -> build-evidence -> report -> audit -> inspect` "
+            f"as the preferred real-review path. {row_refs(design) or refs(papers, limit=5)}",
             "",
             "## Recommended Roadmap",
             "",
-            "1. Run a small real review with source-aware search, explicit selection review, and "
-            "local pypdf parsing first.",
-            "2. Add human decisions for questionable papers and rerun dedup if subtopics are "
-            "missing.",
-            "3. Parse with MinerU only for OCR, complex layout, or table-heavy PDFs where pypdf "
-            "is insufficient.",
-            "4. Generate a synthesis report and inspect it for shallow claims, missing citations, "
-            "and weak method comparisons.",
-            "5. Scale to a source-diverse review only after the small review has stable selected "
-            "papers and usable parsed Markdown.",
+            "1. Improve parsed-Markdown section extraction for agent roles, methods, datasets, "
+            "metrics, and limitations.",
+            "2. Store evidence snippets and claim support before report generation.",
+            "3. Add citation graph extraction and source-quality scoring.",
+            "4. Configure Semantic Scholar API access before a larger real review.",
+            "5. Scale only after `review-selection`, parse quality, evidence table, audit, and "
+            "inspect-workspace all remain clean.",
             "",
             "## Recommended Reading Order",
             "",
@@ -380,13 +384,7 @@ def generate_final_report(workspace: Path) -> str:
         for index, paper in enumerate(papers, start=1)
     )
 
-    lines.extend(
-        [
-            "",
-            "## Appendix: Search Queries",
-            "",
-        ]
-    )
+    lines.extend(["", "## Appendix: Search Queries", ""])
     for source, queries in search_queries.items():
         lines.append(f"### {source}")
         lines.extend(f"- `{query}`" for query in queries)
@@ -394,6 +392,11 @@ def generate_final_report(workspace: Path) -> str:
 
     lines.extend(
         [
+            "## Appendix: Evidence Table",
+            "",
+            "- [Evidence Table](../knowledge/evidence_table.md)",
+            "- [Evidence Table JSON](../knowledge/evidence_table.json)",
+            "",
             "## Appendix: Data Sources",
             "",
             "- arXiv",

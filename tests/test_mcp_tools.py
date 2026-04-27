@@ -21,6 +21,7 @@ def test_tool_definitions_include_agent_workflow_tools() -> None:
     assert "litagent_audit" in names
     assert "litagent_inspect_workspace" in names
     assert "litagent_review_selection" in names
+    assert "litagent_build_evidence" in names
 
 
 def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:

@@ -132,6 +132,7 @@ def write_index(workspace: Path, papers: list[dict[str, Any]]) -> None:
 
 
 def build_knowledge(workspace: Path) -> list[dict[str, Any]]:
+    (workspace / "knowledge").mkdir(parents=True, exist_ok=True)
     plan = read_json(workspace / "research_plan.json", default={}) or {}
     papers = [
         normalize_paper(paper) for paper in read_jsonl(workspace / "data" / "selected_papers.jsonl")

@@ -117,7 +117,7 @@ def write_review_workspace(workspace: Path, *, source_diverse: bool = False) -> 
     ):
         path = workspace / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("parsed text", encoding="utf-8")
+        path.write_text("Source: parsed-full-text\nparsed text", encoding="utf-8")
     write_json(
         workspace / "library" / "metadata" / "p-111111111111.json",
         {**papers[0], "text_source": "local"},
@@ -130,6 +130,31 @@ def write_review_workspace(workspace: Path, *, source_diverse: bool = False) -> 
         path = workspace / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("# ok\n", encoding="utf-8")
+    write_json(
+        workspace / "knowledge" / "evidence_table.json",
+        {
+            "workspace": str(workspace),
+            "selected_count": 1,
+            "themes": [
+                {
+                    "theme": "multi-agent architecture",
+                    "claim": "The system uses multi-agent decomposition.",
+                    "supporting_papers": ["p-111111111111"],
+                    "evidence_snippets_or_sections": [
+                        {
+                            "paper_id": "p-111111111111",
+                            "field": "agent_roles",
+                            "source": "parsed-full-text",
+                            "snippet": "The framework uses multiple agents.",
+                        }
+                    ],
+                    "confidence": "medium",
+                    "gaps_or_uncertainties": [],
+                }
+            ],
+        },
+    )
+    (workspace / "knowledge" / "evidence_table.md").write_text("# Evidence\n", encoding="utf-8")
 
 
 def test_review_selection_flags_off_topic_papers() -> None:

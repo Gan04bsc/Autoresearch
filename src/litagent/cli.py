@@ -8,6 +8,7 @@ from litagent.audit import audit_workspace
 from litagent.classifier import classify_papers
 from litagent.dedup import dedup_and_rank
 from litagent.downloader import download_pdfs
+from litagent.evidence import build_evidence_table
 from litagent.inspect import inspect_workspace, inspect_workspace_markdown
 from litagent.knowledge import build_knowledge
 from litagent.mineru import parse_selected_pdfs
@@ -107,6 +108,17 @@ def build_knowledge_command(args: argparse.Namespace) -> int:
     rows = build_knowledge(args.workspace)
     print(f"Built knowledge files from {len(rows)} papers")
     print(args.workspace / "knowledge")
+    return 0
+
+
+def build_evidence_command(args: argparse.Namespace) -> int:
+    result = build_evidence_table(args.workspace)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(f"Built evidence table from {result['selected_count']} papers")
+        print(args.workspace / "knowledge" / "evidence_table.md")
+        print(args.workspace / "knowledge" / "evidence_table.json")
     return 0
 
 
@@ -254,6 +266,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     knowledge_parser.add_argument("workspace", type=Path)
     knowledge_parser.set_defaults(func=build_knowledge_command)
+
+    evidence_parser = subparsers.add_parser(
+        "build-evidence",
+        help="Generate evidence table artifacts from notes and parsed Markdown.",
+    )
+    evidence_parser.add_argument("workspace", type=Path)
+    evidence_parser.add_argument("--json", action="store_true")
+    evidence_parser.set_defaults(func=build_evidence_command)
 
     report_parser = subparsers.add_parser("report", help="Generate the final research report.")
     report_parser.add_argument("workspace", type=Path)

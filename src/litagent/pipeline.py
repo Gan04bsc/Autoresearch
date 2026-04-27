@@ -7,6 +7,7 @@ from litagent.audit import audit_workspace
 from litagent.classifier import classify_papers
 from litagent.dedup import dedup_and_rank
 from litagent.downloader import download_pdfs
+from litagent.evidence import build_evidence_table
 from litagent.io import append_jsonl
 from litagent.knowledge import build_knowledge
 from litagent.mineru import parse_selected_pdfs
@@ -66,6 +67,9 @@ def run_pipeline(
 
     build_knowledge(workspace)
     append_jsonl(run_log, {"event": "knowledge_completed"})
+
+    build_evidence_table(workspace)
+    append_jsonl(run_log, {"event": "evidence_completed"})
 
     generate_final_report(workspace)
     append_jsonl(run_log, {"event": "report_completed"})

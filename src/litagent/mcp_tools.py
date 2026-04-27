@@ -8,6 +8,7 @@ from litagent.audit import audit_workspace
 from litagent.classifier import classify_papers
 from litagent.dedup import dedup_and_rank
 from litagent.downloader import download_pdfs
+from litagent.evidence import build_evidence_table
 from litagent.inspect import inspect_workspace
 from litagent.knowledge import build_knowledge
 from litagent.mineru import parse_selected_pdfs
@@ -151,6 +152,15 @@ def tool_definitions() -> list[dict[str, Any]]:
             },
         },
         {
+            "name": "litagent_build_evidence",
+            "description": "Generate knowledge/evidence_table.md and evidence_table.json.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"workspace": workspace},
+                "required": ["workspace"],
+            },
+        },
+        {
             "name": "litagent_report",
             "description": "Generate reports/final_report.md.",
             "inputSchema": {
@@ -258,6 +268,9 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
     if name == "litagent_build_knowledge":
         rows = build_knowledge(workspace)
         return {"ok": True, "papers": len(rows)}
+    if name == "litagent_build_evidence":
+        result = build_evidence_table(workspace)
+        return {"ok": True, **result}
     if name == "litagent_report":
         report = generate_final_report(workspace)
         return {"ok": True, "report_chars": len(report)}

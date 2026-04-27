@@ -21,6 +21,15 @@ REQUIRED_REPORT_SECTIONS = [
     "References",
 ]
 
+GENERIC_UNSUPPORTED_PATTERNS = [
+    "these papers",
+    "selected papers",
+    "the literature",
+    "papers show",
+    "systems show",
+    "the field is",
+]
+
 
 def nonempty_file(path: Path) -> bool:
     return path.exists() and path.is_file() and path.stat().st_size > 0
@@ -75,6 +84,50 @@ def parse_quality_metrics(workspace: Path, selected: list[dict[str, Any]]) -> di
         "notes_from_pdf_text": notes_from_pdf_text,
         "notes_from_abstract_fallback": notes_from_abstract_fallback,
         "notes_with_unknown_source": notes_with_unknown_source,
+    }
+
+
+def note_quality_metrics(workspace: Path, selected: list[dict[str, Any]]) -> dict[str, int]:
+    notes_with_parsed_evidence = 0
+    metadata_only_notes = 0
+    missing_notes = 0
+    for paper in selected:
+        note_path = workspace / "library" / "notes" / f"{paper['paper_id']}.md"
+        if not note_path.exists():
+            missing_notes += 1
+            continue
+        text = note_path.read_text(encoding="utf-8")
+        if "Source: parsed-full-text" in text:
+            notes_with_parsed_evidence += 1
+        elif "Metadata / Abstract-Derived Content" in text or "abstract fallback" in text:
+            metadata_only_notes += 1
+    return {
+        "notes_with_parsed_full_text_evidence": notes_with_parsed_evidence,
+        "metadata_only_notes": metadata_only_notes,
+        "missing_notes": missing_notes,
+    }
+
+
+def unsupported_generic_claims(report_text: str) -> list[str]:
+    unsupported: list[str] = []
+    for line in report_text.splitlines():
+        clean = line.strip()
+        if not clean or clean.startswith(("#", "|", "- [p-", "## References")):
+            continue
+        lower = clean.lower()
+        if "[p-" in lower:
+            continue
+        if any(pattern in lower for pattern in GENERIC_UNSUPPORTED_PATTERNS):
+            unsupported.append(clean[:180])
+    return unsupported
+
+
+def report_reference_metrics(report_text: str) -> dict[str, int]:
+    refs = re.findall(r"\[p-[a-f0-9]{12}\]", report_text)
+    return {
+        "paper_reference_count": len(refs),
+        "unique_paper_reference_count": len(set(refs)),
+        "unsupported_generic_claim_count": len(unsupported_generic_claims(report_text)),
     }
 
 
@@ -143,6 +196,7 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
             )
 
     parse_quality = parse_quality_metrics(workspace, selected)
+    note_quality = note_quality_metrics(workspace, selected)
     downloaded_pdf_count = parse_quality["downloaded_pdf_count"]
     parsed_markdown_count = parse_quality["parsed_markdown_count"]
     notes_from_abstract_fallback = parse_quality["notes_from_abstract_fallback"]
@@ -164,6 +218,15 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
             "inspect before using the report as a real review."
         )
 
+    if parsed_markdown_count and note_quality["notes_with_parsed_full_text_evidence"] < max(
+        1, parsed_markdown_count // 2
+    ):
+        warnings.append(
+            "Notes appear mostly metadata/abstract-level despite parsed Markdown existing: "
+            f"{note_quality['notes_with_parsed_full_text_evidence']}/{parsed_markdown_count} "
+            "notes include parsed-full-text evidence."
+        )
+
     report_path = workspace / "reports" / "final_report.md"
     report_text = report_path.read_text(encoding="utf-8") if report_path.exists() else ""
     for section in REQUIRED_REPORT_SECTIONS:
@@ -173,12 +236,33 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
     if selected and not re.search(r"\[p-[a-f0-9]{12}\]", report_text):
         issues.append("final_report.md does not include traceable paper_id citations.")
 
+    evidence_json = workspace / "knowledge" / "evidence_table.json"
+    evidence_md = workspace / "knowledge" / "evidence_table.md"
+    if not evidence_json.exists() or not evidence_md.exists():
+        warnings.append(
+            "Evidence table is missing; run `litagent build-evidence WORKSPACE --json`."
+        )
+
+    report_metrics = report_reference_metrics(report_text)
+    if selected and report_metrics["unique_paper_reference_count"] < min(len(selected), 5):
+        warnings.append(
+            "Final report has too few unique paper-specific references: "
+            f"{report_metrics['unique_paper_reference_count']}/{len(selected)}."
+        )
+    if report_metrics["unsupported_generic_claim_count"]:
+        warnings.append(
+            "Final report contains generic claims without nearby paper support: "
+            f"{report_metrics['unsupported_generic_claim_count']} candidate lines."
+        )
+
     result = {
         "passed": not issues,
         "issues": issues,
         "warnings": warnings,
         "selected_count": len(selected),
         "parse_quality": parse_quality,
+        "note_quality": note_quality,
+        "report_quality": report_metrics,
     }
     write_audit_report(workspace, result)
     return result
@@ -200,6 +284,14 @@ def write_audit_report(workspace: Path, result: dict[str, Any]) -> None:
         (
             "Notes from abstract fallback: "
             f"{result.get('parse_quality', {}).get('notes_from_abstract_fallback', 0)}"
+        ),
+        (
+            "Notes with parsed full-text evidence: "
+            f"{result.get('note_quality', {}).get('notes_with_parsed_full_text_evidence', 0)}"
+        ),
+        (
+            "Unique paper references in report: "
+            f"{result.get('report_quality', {}).get('unique_paper_reference_count', 0)}"
         ),
         "",
         "## Issues",

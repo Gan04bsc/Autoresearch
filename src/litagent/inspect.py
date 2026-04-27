@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from litagent.audit import parse_quality_metrics
+from litagent.audit import note_quality_metrics, parse_quality_metrics, report_reference_metrics
 from litagent.io import read_jsonl
 from litagent.status import workspace_status
 
@@ -140,6 +140,7 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
             )
 
     parse_quality = parse_quality_metrics(workspace, selected)
+    note_quality = note_quality_metrics(workspace, selected)
     downloaded_pdf_count = parse_quality["downloaded_pdf_count"]
     parsed_markdown_count = parse_quality["parsed_markdown_count"]
     if downloaded_pdf_count and parsed_markdown_count == 0:
@@ -152,6 +153,12 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
         quality_concerns.append(
             f"{parse_quality['notes_from_abstract_fallback']} notes used abstract fallback."
         )
+    if parsed_markdown_count and note_quality["notes_with_parsed_full_text_evidence"] < max(
+        1, parsed_markdown_count // 2
+    ):
+        quality_concerns.append(
+            "Notes appear mostly metadata/abstract-level despite parsed Markdown existing."
+        )
 
     if audit_report.exists() and "Status: FAIL" in audit_text:
         quality_concerns.append("The last audit failed.")
@@ -161,12 +168,24 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
     if report_path.exists():
         if not report_has_traceable_citations(report_text):
             quality_concerns.append("Final report lacks traceable paper_id citations.")
+        metrics = report_reference_metrics(report_text)
+        if selected and metrics["unique_paper_reference_count"] < min(len(selected), 5):
+            quality_concerns.append("Final report has too few unique paper-specific references.")
+        if metrics["unsupported_generic_claim_count"]:
+            quality_concerns.append(
+                "Final report may contain generic claims without paper support."
+            )
         if "Original text insufficient" in report_text or "metadata, abstracts" in report_text:
             quality_concerns.append(
                 "Final report appears shallow or metadata-heavy; inspect synthesis before real use."
             )
     else:
         quality_concerns.append("No final report exists yet.")
+
+    evidence_json = workspace / "knowledge" / "evidence_table.json"
+    evidence_md = workspace / "knowledge" / "evidence_table.md"
+    if not evidence_json.exists() or not evidence_md.exists():
+        quality_concerns.append("Evidence table is missing.")
 
     is_mock = any(str(row.get("source_query")) == "mock" for row in raw_results)
     quality_level = choose_quality_level(
@@ -225,8 +244,10 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
         },
         "parse_report_audit_quality": {
             **parse_quality,
+            **note_quality,
             "audit_passed": status.get("audit_passed"),
             "final_report_exists": report_path.exists(),
+            "evidence_table_exists": evidence_json.exists() and evidence_md.exists(),
             "concerns": quality_concerns,
         },
         "recommended_next_action": recommended_next_action,
@@ -264,6 +285,11 @@ def inspect_workspace_markdown(workspace: Path) -> str:
         f"- Parse success rate: {quality['parse_success_rate']:.0%}",
         f"- Notes from parsed Markdown: {quality['notes_from_parsed_markdown']}",
         f"- Notes from abstract fallback: {quality['notes_from_abstract_fallback']}",
+        (
+            "- Notes with parsed full-text evidence: "
+            f"{quality['notes_with_parsed_full_text_evidence']}"
+        ),
+        f"- Evidence table exists: {quality['evidence_table_exists']}",
         f"- Audit passed: {quality['audit_passed']}",
         "",
         "## Concerns",
