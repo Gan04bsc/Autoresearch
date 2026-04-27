@@ -1,0 +1,42 @@
+{
+  "name": "litagent-dev",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
+  },
+  "remoteUser": "vscode",
+  "workspaceFolder": "/app",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind,consistency=cached",
+  "mounts": [
+    "source=litagent-codex-home,target=/home/vscode/.codex,type=volume",
+    "source=${localEnv:USERPROFILE}\\.codex,target=/mnt/host-codex,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}\\workspace,target=/workspace,type=bind,consistency=cached"
+  ],
+  "containerEnv": {
+    "PYTHONUNBUFFERED": "1",
+    "PYTHONPATH": "/app/src",
+    "CODEX_HOME": "/home/vscode/.codex"
+  },
+  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.codex && python .devcontainer/sync_codex_from_host.py && pip install -e \".[dev]\" && sudo npm install -g @openai/codex",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": [
+          "tests"
+        ],
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

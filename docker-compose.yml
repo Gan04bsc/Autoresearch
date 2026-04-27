@@ -1,0 +1,13 @@
+services:
+  litagent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: litagent-dev:latest
+    volumes:
+      - .:/app
+      - ./workspace:/workspace
+    working_dir: /app
+    environment:
+      PYTHONUNBUFFERED: "1"
+    command: bash

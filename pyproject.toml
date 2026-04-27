@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "litagent"
+version = "0.1.0"
+description = "Agentic literature research workbench CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pypdf>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+litagent = "litagent.cli:main"
+litagent-mcp = "litagent.mcp_server:main"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
