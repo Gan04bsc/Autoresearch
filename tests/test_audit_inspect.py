@@ -104,7 +104,7 @@ def test_inspect_workspace_recommends_fixing_parse_quality() -> None:
 
     result = inspect_workspace(workspace)
 
-    assert result["quality_level"] == "smoke-test quality"
+    assert result["quality_level"] == "smoke_test_run"
     assert "Fix PDF parsing" in result["recommended_next_action"]
     assert any(
         "Downloaded PDFs exist" in concern

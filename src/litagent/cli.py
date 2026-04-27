@@ -15,6 +15,7 @@ from litagent.pipeline import run_pipeline
 from litagent.planner import write_research_plan
 from litagent.reader import generate_notes
 from litagent.report import generate_final_report
+from litagent.review_selection import review_selection, review_selection_markdown
 from litagent.search import execute_search
 from litagent.status import workspace_status, workspace_status_markdown
 from litagent.workspace import create_workspace
@@ -41,14 +42,23 @@ def plan_research(args: argparse.Namespace) -> int:
 
 
 def search_research(args: argparse.Namespace) -> int:
-    rows = execute_search(args.workspace, mock=args.mock)
+    rows = execute_search(args.workspace, mock=args.mock, run_id=args.run_id)
+    run_id = rows[0].get("search_run_id") if rows else args.run_id
     print(f"Wrote {len(rows)} raw results")
+    if run_id:
+        print(f"Search run: {run_id}")
+        print(args.workspace / "data" / "search_runs" / str(run_id) / "raw_results.jsonl")
     print(args.workspace / "data" / "raw_results.jsonl")
     return 0
 
 
 def dedup_research(args: argparse.Namespace) -> int:
-    selected = dedup_and_rank(args.workspace, selection_count=args.max_papers)
+    selected = dedup_and_rank(
+        args.workspace,
+        selection_count=args.max_papers,
+        search_scope=args.search_scope,
+        search_run_ids=args.search_run_id,
+    )
     print(f"Selected {len(selected)} papers")
     print(args.workspace / "data" / "papers.jsonl")
     print(args.workspace / "data" / "selected_papers.jsonl")
@@ -144,6 +154,15 @@ def inspect_workspace_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def review_selection_command(args: argparse.Namespace) -> int:
+    result = review_selection(args.workspace)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(review_selection_markdown(args.workspace))
+    return 0
+
+
 def run_research(args: argparse.Namespace) -> int:
     result = run_pipeline(
         args.topic,
@@ -184,11 +203,23 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument(
         "--mock", action="store_true", help="Use deterministic offline mock results."
     )
+    search_parser.add_argument("--run-id", help="Optional explicit search run id.")
     search_parser.set_defaults(func=search_research)
 
     dedup_parser = subparsers.add_parser("dedup", help="Deduplicate, score, and select papers.")
     dedup_parser.add_argument("workspace", type=Path)
     dedup_parser.add_argument("--max-papers", type=int)
+    dedup_parser.add_argument(
+        "--search-scope",
+        choices=["latest", "all", "selected"],
+        default="latest",
+        help="Which isolated search run results to deduplicate.",
+    )
+    dedup_parser.add_argument(
+        "--search-run-id",
+        action="append",
+        help="Search run id to include when --search-scope selected.",
+    )
     dedup_parser.set_defaults(func=dedup_research)
 
     download_parser = subparsers.add_parser("download", help="Download legal open-access PDFs.")
@@ -248,6 +279,14 @@ def build_parser() -> argparse.ArgumentParser:
     inspect_parser.add_argument("workspace", type=Path)
     inspect_parser.add_argument("--json", action="store_true")
     inspect_parser.set_defaults(func=inspect_workspace_command)
+
+    review_parser = subparsers.add_parser(
+        "review-selection",
+        help="Inspect selected papers before download and recommend next action.",
+    )
+    review_parser.add_argument("workspace", type=Path)
+    review_parser.add_argument("--json", action="store_true")
+    review_parser.set_defaults(func=review_selection_command)
 
     run_parser = subparsers.add_parser("run", help="Run the full research pipeline.")
     run_parser.add_argument("topic")

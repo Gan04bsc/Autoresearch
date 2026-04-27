@@ -14,6 +14,7 @@ from litagent.mineru import parse_selected_pdfs
 from litagent.planner import write_research_plan
 from litagent.reader import generate_notes
 from litagent.report import generate_final_report
+from litagent.review_selection import review_selection
 from litagent.search import execute_search
 from litagent.status import workspace_status
 
@@ -58,6 +59,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "properties": {
                     "workspace": workspace,
                     "mock": bool_schema("Use deterministic offline mock results."),
+                    "run_id": text_schema("Optional explicit search run id."),
                 },
                 "required": ["workspace"],
             },
@@ -70,7 +72,26 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "properties": {
                     "workspace": workspace,
                     "max_papers": int_schema("Maximum selected papers."),
+                    "search_scope": {
+                        "type": "string",
+                        "enum": ["latest", "all", "selected"],
+                        "default": "latest",
+                    },
+                    "search_run_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Search run ids used when search_scope is selected.",
+                    },
                 },
+                "required": ["workspace"],
+            },
+        },
+        {
+            "name": "litagent_review_selection",
+            "description": "Review selected papers for relevance before download.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"workspace": workspace},
                 "required": ["workspace"],
             },
         },
@@ -192,11 +213,28 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
         )
         return {"ok": True, "topic": plan["topic"], "workspace": str(workspace)}
     if name == "litagent_search":
-        rows = execute_search(workspace, mock=bool(arguments.get("mock", False)))
-        return {"ok": True, "raw_results": len(rows), "workspace": str(workspace)}
+        rows = execute_search(
+            workspace,
+            mock=bool(arguments.get("mock", False)),
+            run_id=arguments.get("run_id"),
+        )
+        run_id = rows[0].get("search_run_id") if rows else arguments.get("run_id")
+        return {
+            "ok": True,
+            "raw_results": len(rows),
+            "search_run_id": run_id,
+            "workspace": str(workspace),
+        }
     if name == "litagent_dedup":
-        selected = dedup_and_rank(workspace, selection_count=arguments.get("max_papers"))
+        selected = dedup_and_rank(
+            workspace,
+            selection_count=arguments.get("max_papers"),
+            search_scope=str(arguments.get("search_scope") or "latest"),
+            search_run_ids=arguments.get("search_run_ids"),
+        )
         return {"ok": True, "selected": len(selected), "workspace": str(workspace)}
+    if name == "litagent_review_selection":
+        return {"ok": True, **review_selection(workspace)}
     if name == "litagent_download":
         rows = download_pdfs(workspace)
         successes = sum(1 for row in rows if row.get("download_status") == "success")

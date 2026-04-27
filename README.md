@@ -20,8 +20,9 @@ If this container cannot write `/app/.ruff_cache`, run lint with
 ```bash
 litagent init ./my-topic
 litagent plan "agentic literature review tools" --workspace ./my-topic
-litagent search ./my-topic --mock
-litagent dedup ./my-topic --max-papers 30
+litagent search ./my-topic --mock --run-id first-pass
+litagent dedup ./my-topic --max-papers 30 --search-scope latest
+litagent review-selection ./my-topic --json
 litagent download ./my-topic
 litagent parse ./my-topic --mineru-mode auto
 litagent classify ./my-topic
@@ -39,6 +40,36 @@ Use `--mock` for deterministic offline tests. Without `--mock`, search calls the
 Semantic Scholar, and OpenAlex providers. DOI PDF resolution uses Unpaywall and requires
 `UNPAYWALL_EMAIL` or `LITAGENT_CONTACT_EMAIL`; failed downloads are logged and do not stop
 the rest of the pipeline.
+
+## Search Runs, Ranking, and Selection Review
+
+Search is isolated by run. Each run writes:
+
+- `data/search_runs/{run_id}/raw_results.jsonl`
+- `data/search_runs/{run_id}/metadata.json`
+- `data/search_runs/latest.json`
+
+`data/raw_results.jsonl` remains a compatibility view of the latest run. Deduplication defaults to
+the latest search run so refinement rounds do not silently accumulate stale results:
+
+```bash
+litagent dedup ./my-topic --max-papers 8 --search-scope latest
+litagent dedup ./my-topic --max-papers 8 --search-scope all
+litagent dedup ./my-topic --max-papers 8 --search-scope selected --search-run-id first-pass
+```
+
+The v2 ranking mode combines topic keyword overlap, high-value phrase matches, negative terms,
+recency, citation count, and open-PDF availability. Each selected paper stores an explainable
+`score_explanation` in `data/selected_papers.jsonl`.
+
+Before download, run:
+
+```bash
+litagent review-selection ./my-topic --json
+```
+
+This reports likely relevant papers, questionable papers, likely off-topic papers, source/year
+distributions, missing subtopics, and the recommended next action.
 
 ## MinerU PDF Parsing
 
@@ -70,8 +101,10 @@ The audit report includes selected paper count, downloaded PDF count, parsed Mar
 success rate, and notes generated from parsed Markdown versus abstract fallback.
 
 `litagent inspect-workspace WORKSPACE --json` is agent-facing quality guidance. It labels a
-workspace as smoke-test quality or real-review quality, summarizes search and selection concerns,
-reports parse/report/audit concerns, and recommends the next action.
+workspace as `smoke_test_run`, `small_real_review`, `source_diverse_real_review`, or
+`production_quality_review`; summarizes search and selection concerns; reports
+parse/report/audit concerns; and recommends the next action. Source imbalance is a warning, not by
+itself a reason to downgrade an otherwise successful small real review to smoke-test quality.
 
 ## Codex-Orchestrated Mode
 
@@ -95,12 +128,17 @@ The MCP server can also be launched directly:
 python -m litagent.mcp_server
 ```
 
-Typical Codex prompt:
+Recommended next v2 real run:
 
 ```text
-Use $litagent-researcher to run a real literature review for "agentic literature review tools"
-in ./demo-real. Inspect results before accepting the selected papers, use MinerU auto parsing,
-audit the workspace, and improve the final report if needed.
+Use $litagent-researcher to run a small real-mode literature review for "多智能体文献综述自动化工具"
+in ./demo-real-v2 with max_papers=8. Use real API search, configure/use a Semantic Scholar API key
+if available, do not use mock mode, download only legal open-access PDFs, parse first with local
+pypdf (`--mineru-mode off`), and reserve MinerU for complex/OCR/table-heavy PDFs only. Start with
+status or inspect-workspace, create and inspect the plan, run search, inspect raw results, dedup the
+latest search run only, run review-selection before download, refine if selection is weak, then
+download/parse/classify/read/build-knowledge/report/audit and inspect-workspace after audit. Do not
+accept audit pass alone if the report is shallow; improve the report from parsed notes and Markdown.
 ```
 
 ## VS Code Reopen in Container

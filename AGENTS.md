@@ -17,21 +17,25 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
 
 1. Understand the user topic and workspace.
 2. Create or inspect `research_plan.json`.
-3. Run or call search tools.
+3. Run or call search tools. Each search run should be traceable by `search_run_id` under
+   `data/search_runs/{run_id}/`; `data/raw_results.jsonl` is only the latest compatibility view.
 4. Inspect result quality before accepting Top N.
 5. Revise search terms if results are too broad, too narrow, stale, duplicated, or low quality.
-6. Deduplicate and select papers.
-7. Download only legal open PDFs.
-8. Parse PDFs with local pypdf first for ordinary text PDFs; use MinerU only when OCR,
+6. Deduplicate and select papers with an explicit search scope: latest run, all runs, or selected
+   runs. Default to latest unless there is a clear reason to merge multiple refinement rounds.
+7. Run `litagent review-selection WORKSPACE --json` before download and inspect likely relevant,
+   questionable, and likely off-topic papers.
+8. Download only legal open PDFs.
+9. Parse PDFs with local pypdf first for ordinary text PDFs; use MinerU only when OCR,
    complex layout extraction, or pypdf quality is insufficient.
-9. Inspect parsing and download failures.
-10. Read notes and parsed Markdown.
-11. Build knowledge files.
-12. Draft or revise the final report.
-13. Run audit.
-14. Run `litagent inspect-workspace WORKSPACE --json` when available to judge whether the
+10. Inspect parsing and download failures.
+11. Read notes and parsed Markdown.
+12. Build knowledge files.
+13. Draft or revise the final report.
+14. Run audit.
+15. Run `litagent inspect-workspace WORKSPACE --json` when available to judge whether the
     workspace is only smoke-test quality or ready for real-review use.
-15. Fix issues before final response.
+16. Fix issues before final response.
 
 ## Rules
 
@@ -58,6 +62,8 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
 - Lint: `ruff check .`
 - MCP server: `litagent-mcp`
 - Inspect: `litagent inspect-workspace WORKSPACE --json`
+- Selection review: `litagent review-selection WORKSPACE --json`
+- Dedup latest search run: `litagent dedup WORKSPACE --search-scope latest --max-papers N`
 
 ## Definition of Done
 
@@ -68,3 +74,5 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
 - Agent-facing status/audit/inspection output is sufficient for Codex to decide the next step.
 - Parse quality is visible: selected paper count, downloaded PDF count, parsed Markdown count,
   parse success rate, and note source counts are reported.
+- Search refinements are traceable and do not silently mix stale raw results into the latest
+  selection.

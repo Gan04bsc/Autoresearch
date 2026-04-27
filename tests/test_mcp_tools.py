@@ -20,6 +20,7 @@ def test_tool_definitions_include_agent_workflow_tools() -> None:
     assert "litagent_status" in names
     assert "litagent_audit" in names
     assert "litagent_inspect_workspace" in names
+    assert "litagent_review_selection" in names
 
 
 def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:
@@ -29,16 +30,22 @@ def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:
         "litagent_plan",
         {"topic": "agentic literature review tools", "workspace": str(workspace), "max_papers": 3},
     )
-    search = call_tool("litagent_search", {"workspace": str(workspace), "mock": True})
+    search = call_tool(
+        "litagent_search",
+        {"workspace": str(workspace), "mock": True, "run_id": "mcp-run"},
+    )
     dedup = call_tool("litagent_dedup", {"workspace": str(workspace), "max_papers": 3})
+    review = call_tool("litagent_review_selection", {"workspace": str(workspace)})
     status = call_tool("litagent_status", {"workspace": str(workspace)})
     inspection = call_tool("litagent_inspect_workspace", {"workspace": str(workspace)})
 
     assert plan["ok"]
     assert search["raw_results"] >= 5
+    assert search["search_run_id"] == "mcp-run"
     assert dedup["selected"] == 3
+    assert review["selected_count"] == 3
     assert status["counts"]["selected_papers"] == 3
-    assert inspection["quality_level"] == "smoke-test quality"
+    assert inspection["quality_level"] == "smoke_test_run"
     assert "recommended_next_action" in inspection
     assert len(read_jsonl(workspace / "data" / "selected_papers.jsonl")) == 3
 

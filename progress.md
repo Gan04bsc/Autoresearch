@@ -65,6 +65,27 @@
 - Ambiguity decision: `litagent run` defaults to `--mineru-mode off` so ordinary tests and mock runs never call a rate-limited external API. Users can opt in with `--mineru-mode auto`, `agent`, or `precision`.
 - Security decision: MinerU tokens are read from `MINERU_API_TOKEN` or local `.env`; never commit tokens to source, README, or progress files.
 - Ran a stepwise MCP mock literature review in `./demo-agent-mock` for topic `多智能体文献综述自动化工具`, inspecting status, plan, raw results, selected papers, notes, knowledge files, final report, and audit output instead of using the all-in-one pipeline.
+- Added search batch isolation: every search run now has a `search_run_id`, `search_created_at`,
+  per-run `data/search_runs/{run_id}/raw_results.jsonl`, per-run metadata, and a latest-run pointer.
+- Kept `data/raw_results.jsonl` as a compatibility view of the latest search run instead of a
+  silent accumulator.
+- Updated deduplication so Codex can choose `--search-scope latest`, `all`, or `selected`; the
+  default is `latest` to avoid stale refinement results contaminating the current selection.
+- Added topic-sensitive v2 ranking with include-keyword overlap, high-value phrase matches,
+  negative-term penalties, modest recency/citation/open-PDF signals, and per-paper
+  `score_explanation` metadata.
+- Added `litagent review-selection WORKSPACE --json` and MCP tool `litagent_review_selection` for
+  pre-download relevance review, source/year distributions, missing subtopics, and next-action
+  guidance.
+- Improved deterministic report generation toward the manually rewritten `demo-real-small` style:
+  executive summary, method taxonomy, system comparison, pipeline patterns, multi-agent roles,
+  evidence handling, evaluation methods, gaps, design implications, and roadmap.
+- Refined `inspect-workspace` quality labels into `smoke_test_run`, `small_real_review`,
+  `source_diverse_real_review`, and `production_quality_review`; source imbalance is now a warning
+  rather than the sole reason to downgrade a successful small real run.
+- Recommended next real run is a new `./demo-real-v2` workspace with Semantic Scholar API key if
+  available, local pypdf parsing first, MinerU reserved for OCR/complex-layout/table-heavy PDFs,
+  `review-selection` before download, and `inspect-workspace` after audit.
 
 ## Validation
 
@@ -96,6 +117,13 @@
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after pypdf surrogate cleaning and classifier title-priority updates.
 - Passed: `litagent parse ./demo-real-small --mineru-mode off` parsed 8/8 real PDFs using local pypdf.
 - Passed: `litagent audit ./demo-real-small`; audit report shows 8 selected papers, 8 PDFs, 8 parsed Markdown files, and 100% parse success.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 34 tests after v2 search-run, ranking, review-selection, report, and quality-label updates.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after v2 updates.
+- Passed: `litagent review-selection ./demo-real-small --json`; it found 8 likely relevant papers,
+  0 questionable papers, 0 likely off-topic papers, and no missing subtopics.
+- Passed: `litagent inspect-workspace ./demo-real-small --json`; it now labels the workspace
+  `small_real_review` with 8/8 parsed Markdown, 0 abstract-fallback notes, and only a source
+  imbalance search warning.
 
 ## Known Issues
 
@@ -111,8 +139,15 @@
 - MinerU precision API requires `MINERU_API_TOKEN`; large/complex PDFs should use `--mineru-mode precision`.
 - There is no LLM-backed reader yet; notes and reports are conservative deterministic summaries based on metadata, abstracts, and selected paper IDs.
 - Historical `./demo-agent-mock` logs still contain the earlier 5 local parse skips from before `pypdf` was installed, but rerunning download/parse/read/report/audit produced 5/5 parsed Markdown files and notes from parsed Markdown.
+- Semantic Scholar can return 429 rate limits without an API key, so the next real run should set a
+  Semantic Scholar key when available and treat OpenAlex dominance as a warning to inspect.
+- Local pypdf parsing works for text PDFs but is not sufficient for complex layout, OCR-heavy, or
+  table-heavy papers; reserve MinerU for those cases.
 
 ## Next Task
 
-Add opt-in live smoke tests for MinerU and academic providers behind environment flags, then improve the reader to use parsed Markdown sections more deeply instead of abstract-heavy deterministic notes.
+Run a small v2 real review in `./demo-real-v2` with `max_papers=8`, real API search, Semantic
+Scholar API key if available, pypdf local parsing first, `review-selection` before download, and
+`inspect-workspace` after audit. Then improve the reader to use parsed Markdown sections more
+deeply instead of abstract-heavy deterministic notes.
 

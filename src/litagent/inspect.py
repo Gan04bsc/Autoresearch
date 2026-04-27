@@ -26,6 +26,53 @@ def report_has_traceable_citations(report_text: str) -> bool:
     return bool(re.search(r"\[p-[a-f0-9]{12}\]", report_text))
 
 
+def report_has_synthesis_structure(report_text: str) -> bool:
+    expected = [
+        "## Taxonomy Of Methods",
+        "## Comparison Of Selected Systems",
+        "## Pipeline Patterns Across Papers",
+        "## Design Implications For Our Tool",
+        "## Recommended Roadmap",
+    ]
+    return sum(heading in report_text for heading in expected) >= 4
+
+
+def choose_quality_level(
+    *,
+    is_mock: bool,
+    selected_count: int,
+    raw_count: int,
+    source_counts: dict[str, int],
+    selected_concerns: list[str],
+    quality_concerns: list[str],
+    audit_passed: bool,
+    parse_success_rate: float,
+    notes_from_abstract_fallback: int,
+    report_text: str,
+) -> str:
+    if is_mock or raw_count == 0 or selected_count == 0:
+        return "smoke_test_run"
+    if (
+        not audit_passed
+        or quality_concerns
+        or selected_concerns
+        or parse_success_rate < 0.8
+        or notes_from_abstract_fallback
+    ):
+        return "smoke_test_run"
+
+    source_total = sum(source_counts.values())
+    dominant_share = max(source_counts.values(), default=0) / max(1, source_total)
+    source_diverse = len(source_counts) >= 3 and dominant_share <= 0.75
+    synthesis_ready = report_has_synthesis_structure(report_text)
+
+    if selected_count >= 20 and source_diverse and parse_success_rate >= 0.9 and synthesis_ready:
+        return "production_quality_review"
+    if selected_count >= 8 and source_diverse and synthesis_ready:
+        return "source_diverse_real_review"
+    return "small_real_review"
+
+
 def inspect_workspace(workspace: Path) -> dict[str, Any]:
     status = workspace_status(workspace)
     plan = status.get("plan") or {}
@@ -121,16 +168,19 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
     else:
         quality_concerns.append("No final report exists yet.")
 
-    all_concerns = [*search_concerns, *selected_concerns, *quality_concerns]
     is_mock = any(str(row.get("source_query")) == "mock" for row in raw_results)
-    real_review_ready = (
-        bool(selected)
-        and bool(report_text)
-        and not is_mock
-        and not all_concerns
-        and parse_quality["parse_success_rate"] >= 0.8
+    quality_level = choose_quality_level(
+        is_mock=is_mock,
+        selected_count=len(selected),
+        raw_count=len(raw_results),
+        source_counts=counts_by_source,
+        selected_concerns=selected_concerns,
+        quality_concerns=quality_concerns,
+        audit_passed=bool(status.get("audit_passed")),
+        parse_success_rate=float(parse_quality["parse_success_rate"]),
+        notes_from_abstract_fallback=int(parse_quality["notes_from_abstract_fallback"]),
+        report_text=report_text,
     )
-    quality_level = "real-review quality" if real_review_ready else "smoke-test quality"
 
     if not plan:
         recommended_next_action = "Create a research plan."
@@ -156,6 +206,7 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
     return {
         "workspace": str(workspace),
         "quality_level": quality_level,
+        "quality_label": quality_level,
         "search_result_quality": {
             "raw_results": len(raw_results),
             "deduplicated_papers": len(papers),
