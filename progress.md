@@ -49,6 +49,9 @@
 - Audit now fails when selected papers have downloaded PDFs but zero parsed Markdown files.
 - Added `litagent inspect-workspace WORKSPACE --json` and MCP tool `litagent_inspect_workspace` for smoke-test vs real-review quality assessment, search/selection/parse/report/audit concerns, and recommended next action.
 - Updated status output to separate current selected-paper parse failures from historical parse log failures.
+- Switched the recommended small-run parsing path to local pypdf first; MinerU remains optional for OCR or complex layout extraction.
+- Hardened pypdf extraction by replacing invalid Unicode surrogate characters before writing parsed Markdown.
+- Improved classifier matching with word-boundary checks and title-first system detection so SurveyGen/LiRA-style generation frameworks classify as `system` instead of survey/dataset/benchmark due to incidental words in names or abstracts.
 - Added tests for research plan schema, provider mappings, dedup/ranking, classifier behavior, MinerU API adapters, and end-to-end mock outputs.
 - Added Docker Desktop support through `Dockerfile` and `docker-compose.yml`.
 - Switched `Dockerfile` to `mcr.microsoft.com/devcontainers/python:1-3.11-bookworm` after Debian apt mirror returned 502 during build.
@@ -89,6 +92,10 @@
 - Passed: `litagent download ./demo-agent-mock && litagent parse ./demo-agent-mock --mineru-mode off && litagent classify ./demo-agent-mock && litagent read ./demo-agent-mock && litagent build-knowledge ./demo-agent-mock && litagent report ./demo-agent-mock && litagent audit ./demo-agent-mock` after adding `pypdf`; local mock parsing produced 5/5 parsed Markdown files.
 - Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 26 tests after parse quality, classifier, planner, and inspect-workspace updates.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after parse quality, classifier, planner, and inspect-workspace updates.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 29 tests after pypdf surrogate cleaning and classifier title-priority updates.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after pypdf surrogate cleaning and classifier title-priority updates.
+- Passed: `litagent parse ./demo-real-small --mineru-mode off` parsed 8/8 real PDFs using local pypdf.
+- Passed: `litagent audit ./demo-real-small`; audit report shows 8 selected papers, 8 PDFs, 8 parsed Markdown files, and 100% parse success.
 
 ## Known Issues
 

@@ -8,6 +8,10 @@ from litagent.io import read_jsonl, write_json, write_jsonl
 from litagent.schema import format_short_citation, normalize_paper
 
 
+def clean_extracted_text(text: str) -> str:
+    return text.encode("utf-8", errors="replace").decode("utf-8")
+
+
 def extract_pdf_text(path: Path) -> tuple[str, str | None]:
     if not path.exists():
         return "", "PDF file is missing"
@@ -18,7 +22,7 @@ def extract_pdf_text(path: Path) -> tuple[str, str | None]:
 
     try:
         reader = PdfReader(str(path))
-        pages = [page.extract_text() or "" for page in reader.pages]
+        pages = [clean_extracted_text(page.extract_text() or "") for page in reader.pages]
     except Exception as exc:  # noqa: BLE001
         return "", f"PDF text extraction failed: {exc}"
     return "\n".join(page for page in pages if page.strip()), None

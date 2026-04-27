@@ -22,7 +22,8 @@ Read `prd.md` and `progress.md` first. Implement the product incrementally.
 5. Revise search terms if results are too broad, too narrow, stale, duplicated, or low quality.
 6. Deduplicate and select papers.
 7. Download only legal open PDFs.
-8. Parse PDFs through MinerU or documented fallback.
+8. Parse PDFs with local pypdf first for ordinary text PDFs; use MinerU only when OCR,
+   complex layout extraction, or pypdf quality is insufficient.
 9. Inspect parsing and download failures.
 10. Read notes and parsed Markdown.
 11. Build knowledge files.

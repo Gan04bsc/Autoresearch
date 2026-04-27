@@ -91,3 +91,36 @@ def test_classifier_does_not_mark_position_as_survey_due_to_review_word() -> Non
 
     assert paper_type == "position"
     assert "position" in evidence
+
+
+def test_classifier_prefers_system_for_multi_agent_literature_generation_framework() -> None:
+    paper_type, evidence = classify_paper(
+        {
+            "title": (
+                "LiRA: A Multi-Agent Framework for Reliable and Readable "
+                "Literature Review Generation"
+            ),
+            "abstract": (
+                "Evaluated on SciReviewGen and a proprietary dataset, LiRA outperforms "
+                "baselines in writing and citation quality."
+            ),
+        }
+    )
+
+    assert paper_type == "system"
+    assert "title" in evidence
+
+
+def test_classifier_does_not_treat_surveygen_name_as_survey() -> None:
+    paper_type, evidence = classify_paper(
+        {
+            "title": (
+                "SurveyGen-I: Consistent Scientific Survey Generation with Evolving "
+                "Plans and Memory-Guided Writing"
+            ),
+            "abstract": "SurveyGen-I is an automatic survey generation framework.",
+        }
+    )
+
+    assert paper_type == "system"
+    assert "system" in evidence

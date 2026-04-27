@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,20 @@ SYSTEM_TERMS = [
     "open source",
 ]
 
+TITLE_SYSTEM_TERMS = [
+    "agent",
+    "agents",
+    "framework",
+    "system",
+    "workbench",
+    "platform",
+    "tool",
+    "toolkit",
+    "pipeline",
+    "generation",
+    "writing",
+]
+
 TECHNICAL_TERMS = [
     "method",
     "approach",
@@ -67,10 +82,31 @@ TECHNICAL_TERMS = [
 ]
 
 
+def contains_term(text: str, term: str) -> bool:
+    if term.isascii():
+        pattern = rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])"
+        return bool(re.search(pattern, text))
+    return term in text
+
+
 def first_matching_term(text: str, terms: list[str]) -> str | None:
     for term in terms:
-        if term in text:
+        if contains_term(text, term):
             return term
+    return None
+
+
+def title_is_survey(title: str) -> str | None:
+    survey_patterns = [
+        (r"(?<![a-z0-9])a survey(?![a-z0-9])", "a survey"),
+        (r"(?<![a-z0-9])survey of(?![a-z0-9])", "survey of"),
+        (r"(?<![a-z0-9])survey on(?![a-z0-9])", "survey on"),
+        (r"(?<![a-z0-9])systematic literature review(?![a-z0-9])", "systematic literature review"),
+        (r"(?<![a-z0-9])scoping review(?![a-z0-9])", "scoping review"),
+    ]
+    for pattern, evidence in survey_patterns:
+        if re.search(pattern, title):
+            return evidence
     return None
 
 
@@ -80,19 +116,28 @@ def classify_paper(paper: dict[str, Any]) -> tuple[str, str]:
     venue = str(paper.get("venue", "")).lower()
     text = f"{title} {abstract} {venue}"
 
-    # Dataset and benchmark labels are artifact types, so classify them before broad system terms.
-    for paper_type, terms in (("dataset", DATASET_TERMS), ("benchmark", BENCHMARK_TERMS)):
-        if term := first_matching_term(text, terms):
-            return paper_type, f"matched {paper_type} keyword `{term}` in title/abstract/venue"
-
     if term := first_matching_term(text, POSITION_TERMS):
         return "position", f"matched position keyword `{term}` in title/abstract/venue"
+
+    for paper_type, terms in (("dataset", DATASET_TERMS), ("benchmark", BENCHMARK_TERMS)):
+        if term := first_matching_term(title, terms):
+            return paper_type, f"matched {paper_type} keyword `{term}` in title"
+
+    if term := title_is_survey(title):
+        return "survey", f"matched survey title pattern `{term}`"
+
+    if term := first_matching_term(title, TITLE_SYSTEM_TERMS):
+        return "system", f"matched system keyword `{term}` in title"
 
     if term := first_matching_term(text, SURVEY_TERMS):
         return "survey", f"matched survey keyword `{term}` in title/abstract/venue"
 
     if term := first_matching_term(text, SYSTEM_TERMS):
         return "system", f"matched system keyword `{term}` in title/abstract/venue"
+
+    for paper_type, terms in (("dataset", DATASET_TERMS), ("benchmark", BENCHMARK_TERMS)):
+        if term := first_matching_term(text, terms):
+            return paper_type, f"matched {paper_type} keyword `{term}` in title/abstract/venue"
 
     for term in TECHNICAL_TERMS:
         if term in text:

@@ -48,7 +48,7 @@ Local fallback parsing depends on `pypdf`, which is installed by `pip install -e
 
 Parser modes:
 
-- `off`: no MinerU network call; use local text extraction if available, otherwise fallback later to abstracts.
+- `off`: no MinerU network call; use local pypdf text extraction if available, otherwise fallback later to abstracts. This is the recommended first pass for small real runs with text PDFs.
 - `agent`: use MinerU Agent lightweight API, no token required.
 - `precision`: use MinerU precision API and requires `MINERU_API_TOKEN`.
 - `auto`: use `precision` when `MINERU_API_TOKEN` is set, otherwise use `agent`.
