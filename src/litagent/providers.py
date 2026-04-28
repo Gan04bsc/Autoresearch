@@ -14,6 +14,19 @@ FetchBytes = Callable[[str, dict[str, str] | None], bytes]
 
 USER_AGENT = "litagent/0.1 (mailto:litagent@example.invalid)"
 SEMANTIC_SCHOLAR_DEFAULT_BASE_URL = "https://api.semanticscholar.org"
+SEMANTIC_SCHOLAR_SEARCH_PATH = "/graph/v1/paper/search"
+SEMANTIC_SCHOLAR_FIELDS = [
+    "title",
+    "authors",
+    "year",
+    "venue",
+    "abstract",
+    "externalIds",
+    "citationCount",
+    "referenceCount",
+    "url",
+    "openAccessPdf",
+]
 
 
 class SearchProvider(Protocol):
@@ -33,6 +46,13 @@ def get_json(
     url: str, headers: dict[str, str] | None = None, fetch: FetchBytes = default_fetch_bytes
 ) -> Any:
     return json.loads(fetch(url, headers).decode("utf-8"))
+
+
+def normalize_semantic_scholar_auth_mode(value: str | None) -> str:
+    mode = (value or "x-api-key").strip().lower().replace("-", "_")
+    if mode in {"bearer", "authorization", "authorization_bearer"}:
+        return "authorization_bearer"
+    return "x_api_key"
 
 
 def reconstruct_openalex_abstract(inverted_index: dict[str, list[int]] | None) -> str:
@@ -169,33 +189,40 @@ class SemanticScholarProvider:
             or SEMANTIC_SCHOLAR_DEFAULT_BASE_URL
         ).rstrip("/")
 
+    def auth_mode(self) -> str:
+        return normalize_semantic_scholar_auth_mode(
+            get_config_value("SEMANTIC_SCHOLAR_API_AUTH_MODE")
+        )
+
     def headers(self) -> dict[str, str]:
         api_key = get_config_value("SEMANTIC_SCHOLAR_API_KEY")
         if not api_key:
             return {}
-        auth_mode = (get_config_value("SEMANTIC_SCHOLAR_API_AUTH_MODE") or "x-api-key").lower()
-        if auth_mode in {"bearer", "authorization", "authorization_bearer"}:
+        if self.auth_mode() == "authorization_bearer":
             return {"Authorization": f"Bearer {api_key}"}
         return {"x-api-key": api_key}
 
-    def search(self, query: str, max_results: int) -> list[dict[str, Any]]:
-        fields = ",".join(
-            [
-                "title",
-                "authors",
-                "year",
-                "venue",
-                "abstract",
-                "externalIds",
-                "citationCount",
-                "referenceCount",
-                "url",
-                "openAccessPdf",
-            ]
-        )
+    def endpoint_url(self, query: str, max_results: int) -> str:
+        fields = ",".join(SEMANTIC_SCHOLAR_FIELDS)
         params = urllib.parse.urlencode({"query": query, "limit": max_results, "fields": fields})
+        return f"{self.base_url()}{SEMANTIC_SCHOLAR_SEARCH_PATH}?{params}"
+
+    def diagnostic_context(self) -> dict[str, Any]:
+        base_url = self.base_url()
+        return {
+            "provider": self.name,
+            "base_url": base_url,
+            "base_url_type": (
+                "official" if base_url == SEMANTIC_SCHOLAR_DEFAULT_BASE_URL else "custom"
+            ),
+            "auth_mode": self.auth_mode(),
+            "key_present": bool(get_config_value("SEMANTIC_SCHOLAR_API_KEY")),
+            "endpoint": f"{base_url}{SEMANTIC_SCHOLAR_SEARCH_PATH}",
+        }
+
+    def search(self, query: str, max_results: int) -> list[dict[str, Any]]:
         data = get_json(
-            f"{self.base_url()}/graph/v1/paper/search?{params}",
+            self.endpoint_url(query, max_results),
             headers=self.headers(),
             fetch=self.fetch,
         )

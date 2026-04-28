@@ -97,8 +97,21 @@ export SEMANTIC_SCHOLAR_API_AUTH_MODE="authorization_bearer"
 
 默认鉴权模式是 `x-api-key`。当 `SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer`
 时，provider 会发送 `Authorization: Bearer <SEMANTIC_SCHOLAR_API_KEY>`。如果没有
-有效 key，Semantic Scholar 可能返回 HTTP 429；该错误会被记录到 `logs/search_errors.jsonl`，
-不会中断整个 pipeline。
+有效 key，Semantic Scholar 可能返回 HTTP 401、403 或 429；该错误会被记录到
+`logs/search_errors.jsonl`，不会中断整个 pipeline。日志只记录 `key_present`、`auth_mode`、
+`base_url`、`endpoint` 和诊断建议，不会写入真实 key。
+
+重新运行来源多样性验证前，先做最小 provider 连通性检查：
+
+```bash
+litagent provider-smoke semantic-scholar --json
+```
+
+该命令只请求 1 条 `"literature review automation"` 结果，不创建 workspace、不运行完整
+search、不下载论文。输出包含 `success`、`status_code`、`error_type`、`base_url`、
+`auth_mode`、`key_present`、`endpoint`、`result_count` 和 `likely_action`。如果仍然返回
+403，应先检查 API key 权限、鉴权 header 模式、代理 base URL、endpoint path 和代理是否
+允许该路径。
 
 ## Search Runs, Ranking, and Selection Review
 
@@ -239,6 +252,8 @@ evidence quality scoring 和中文研究级报告草稿质量。
 
 - 确认 `SEMANTIC_SCHOLAR_API_KEY` 已配置；如使用兼容代理，还需确认
   `SEMANTIC_SCHOLAR_API_BASE_URL` 和 `SEMANTIC_SCHOLAR_API_AUTH_MODE`。
+- 先运行 `litagent provider-smoke semantic-scholar --json`，并确认 Semantic Scholar
+  provider 能返回成功结果；如果 smoke test 失败，不要重新运行 v4。
 - 使用 fresh workspace：`./demo-real-v4`。
 - `max_papers=15`，目标是来源多样性验证，不是扩大规模。
 - 使用真实检索和 search run isolation，不使用 mock。
@@ -249,7 +264,7 @@ evidence quality scoring 和中文研究级报告草稿质量。
 - `report` 默认中文，且必须是 evidence-backed report。
 - Codex / Agent 必须复核 evidence quality、paper_id 支撑和泛化表述。
 
-如果 Semantic Scholar 仍然 429 或有效候选很少，`demo-real-v4` 不应强行标记为
+如果 Semantic Scholar 仍然 401、403、429 或有效候选很少，`demo-real-v4` 不应强行标记为
 `source_diverse_real_review`。如果 selected papers 仍被 arXiv/OpenAlex 主导，或来源多样性
 改善但相关性和证据质量明显下降，则最多仍应视为 `small_real_review`，并在总结中说明原因。
 

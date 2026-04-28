@@ -177,6 +177,18 @@
 - `./demo-real-v4` audit passed and `inspect-workspace` labeled the workspace
   `small_real_review`; it must not be upgraded to `source_diverse_real_review` because Semantic
   Scholar had no effective contribution and the selected set remains arXiv/OpenAlex dominated.
+- Added `litagent provider-smoke semantic-scholar --json` as a safe minimal Semantic Scholar
+  connectivity diagnostic. It requests at most three results, reports `status_code`, `auth_mode`,
+  `base_url`, `endpoint`, `key_present`, `error_type`, and `likely_action`, and never prints the
+  real API key.
+- Improved Semantic Scholar search error logs so 401/403/429 failures include actionable provider
+  diagnostics instead of only a raw HTTP error string.
+- Documented that `demo-real-v4` should not be retried until the provider smoke test succeeds, and
+  that a successful smoke test still does not by itself justify `source_diverse_real_review`.
+- Local `litagent provider-smoke semantic-scholar --json` still returns HTTP 403 Forbidden with
+  `key_present=true`, `auth_mode=authorization_bearer`, and the configured custom proxy base URL;
+  this indicates the next step is checking the key/proxy permission or auth/path expectations
+  outside the literature-review pipeline.
 
 ## Validation
 
@@ -264,6 +276,11 @@
   Semantic Scholar key/proxy configuration support and v4 preflight documentation.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after Semantic Scholar
   configuration support.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 52 tests after
+  provider smoke diagnostics.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after provider smoke diagnostics.
+- Ran: `litagent provider-smoke semantic-scholar --json`; it safely reported HTTP 403 without
+  printing the real API key.
 
 ## Known Issues
 

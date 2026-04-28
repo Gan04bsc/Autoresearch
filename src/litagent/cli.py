@@ -14,6 +14,7 @@ from litagent.knowledge import build_knowledge
 from litagent.mineru import parse_selected_pdfs
 from litagent.pipeline import run_pipeline
 from litagent.planner import write_research_plan
+from litagent.provider_diagnostics import smoke_test_semantic_scholar
 from litagent.reader import generate_notes
 from litagent.report import generate_final_report
 from litagent.review_selection import review_selection, review_selection_markdown
@@ -175,6 +176,23 @@ def review_selection_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def provider_smoke_command(args: argparse.Namespace) -> int:
+    provider_name = args.provider.replace("-", "_")
+    if provider_name != "semantic_scholar":
+        msg = f"Unsupported provider smoke test: {args.provider}"
+        raise ValueError(msg)
+    result = smoke_test_semantic_scholar(query=args.query, limit=args.limit)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(f"Provider: {result['provider']}")
+        print(f"Success: {result['success']}")
+        print(f"Status code: {result['status_code']}")
+        print(f"Error type: {result['error_type']}")
+        print(f"Likely action: {result['likely_action']}")
+    return 0
+
+
 def run_research(args: argparse.Namespace) -> int:
     result = run_pipeline(
         args.topic,
@@ -307,6 +325,25 @@ def build_parser() -> argparse.ArgumentParser:
     review_parser.add_argument("workspace", type=Path)
     review_parser.add_argument("--json", action="store_true")
     review_parser.set_defaults(func=review_selection_command)
+
+    provider_smoke_parser = subparsers.add_parser(
+        "provider-smoke",
+        help="Run a minimal safe provider connectivity diagnostic.",
+    )
+    provider_smoke_parser.add_argument(
+        "provider",
+        choices=["semantic-scholar", "semantic_scholar"],
+        help="Provider to diagnose.",
+    )
+    provider_smoke_parser.add_argument("--json", action="store_true")
+    provider_smoke_parser.add_argument("--query", default="literature review automation")
+    provider_smoke_parser.add_argument(
+        "--limit",
+        type=int,
+        default=1,
+        help="Maximum results to request; capped at 3 for smoke tests.",
+    )
+    provider_smoke_parser.set_defaults(func=provider_smoke_command)
 
     run_parser = subparsers.add_parser("run", help="Run the full research pipeline.")
     run_parser.add_argument("topic")

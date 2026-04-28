@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from litagent.io import append_jsonl, read_json, write_json, write_jsonl
+from litagent.provider_diagnostics import semantic_scholar_error_diagnostic
 from litagent.providers import SearchProvider, default_providers, mock_search_results
 from litagent.schema import normalize_paper
 from litagent.workspace import create_workspace
@@ -59,14 +60,25 @@ def write_search_outputs(
 
 def provider_error_message(source: str, exc: Exception) -> str:
     message = str(exc)
-    if source == "semantic_scholar" and "429" in message:
-        return (
-            f"{message}; Semantic Scholar rate-limited the request. Configure "
-            "SEMANTIC_SCHOLAR_API_KEY, or use SEMANTIC_SCHOLAR_API_BASE_URL with "
-            "SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer when a compatible proxy "
-            "is intentionally configured."
-        )
+    if source == "semantic_scholar":
+        details = semantic_scholar_error_diagnostic(exc)
+        if details.get("status_code") == 429:
+            return (
+                f"{details['error']}; Semantic Scholar rate-limited the request. Configure "
+                "SEMANTIC_SCHOLAR_API_KEY, or use SEMANTIC_SCHOLAR_API_BASE_URL with "
+                "SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer when a compatible proxy "
+                "is intentionally configured."
+            )
+        if details.get("status_code") in {401, 403}:
+            return f"{details['error']}; {details['likely_action']}"
+        return str(details.get("error") or message)
     return message
+
+
+def provider_error_details(source: str, exc: Exception) -> dict[str, Any]:
+    if source == "semantic_scholar":
+        return semantic_scholar_error_diagnostic(exc)
+    return {"provider": source, "error_type": "provider_error"}
 
 
 def execute_search(
@@ -135,9 +147,11 @@ def execute_search(
                         )
                     )
             except Exception as exc:  # noqa: BLE001 - provider failures must not stop pipeline
+                details = provider_error_details(source, exc)
                 append_jsonl(
                     errors_path,
                     {
+                        **details,
                         "source": source,
                         "query": query,
                         "error": provider_error_message(source, exc),

@@ -238,6 +238,9 @@
 
 - 配置 `SEMANTIC_SCHOLAR_API_KEY`；如使用兼容代理，还需配置
   `SEMANTIC_SCHOLAR_API_BASE_URL` 和 `SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer`。
+- 先运行 `litagent provider-smoke semantic-scholar --json`，确认最小 Semantic Scholar
+  请求可以成功返回结果。该命令只做 1 条小查询，不创建新的 v4 run，不下载论文，也不会
+  输出真实 API key。
 - 使用 fresh workspace：`./demo-real-v4`。
 - `max_papers=15`。
 - 使用真实检索，不使用 mock。
@@ -265,6 +268,12 @@
 
 失败策略：
 
+- `demo-real-v4` 的第一次验证结果已经显示 Semantic Scholar 通过已配置 key/proxy 路径
+  返回 HTTP 403 Forbidden，实际贡献候选为 0，因此该 run 只能保持
+  `small_real_review`。
+- 如果 Semantic Scholar provider smoke test 仍然返回 401、403、429 或无法解析 JSON，
+  不应重新运行 `demo-real-v4`，应先修复 API key、auth mode、base URL、endpoint path
+  或代理权限问题。
 - 如果 Semantic Scholar 仍然返回 429 或有效候选很少，`demo-real-v4` 最多仍应标记为
   `small_real_review`，并说明 Semantic Scholar 未能有效贡献来源多样性。
 - 如果 selected papers 仍几乎全来自 arXiv/OpenAlex，不能升级到

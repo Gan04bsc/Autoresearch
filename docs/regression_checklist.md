@@ -14,6 +14,10 @@
 - selected papers 是否仍包含 `score_explanation`。
 - 排名是否避免让高引用但泛泛相关的论文压过高度相关论文。
 - 负面关键词是否能压低 robotics、traffic、swarm、game theory、reinforcement learning、medical、education、industry-only 等偏题结果。
+- 重新运行来源多样性验证前，是否先通过
+  `litagent provider-smoke semantic-scholar --json`。
+- Semantic Scholar 失败日志是否包含 `status_code`、`auth_mode`、`base_url`、`endpoint`、
+  `key_present` 和 `likely_action`，且不包含真实 API key。
 
 `demo-real-v3` 基线：
 
@@ -184,6 +188,7 @@
 以下条件时，才可以认为它比 `demo-real-v3` 前进：
 
 - 已配置 `SEMANTIC_SCHOLAR_API_KEY`。
+- `litagent provider-smoke semantic-scholar --json` 已成功，且输出不泄露 API key。
 - 使用 fresh workspace：`./demo-real-v4`。
 - `max_papers=15`。
 - Semantic Scholar 实际贡献有效候选结果。
@@ -198,7 +203,8 @@
   `source_diverse_real_review`。
 
 如果无法达到 `source_diverse_real_review`，必须在最终总结中说明具体原因，例如
-Semantic Scholar 仍被限流、有效候选不足、selected papers 仍由单一来源主导或证据质量下降。
+Semantic Scholar 返回 401/403/429、有效候选不足、selected papers 仍由单一来源主导或
+证据质量下降。
 如果 Semantic Scholar 无有效贡献，则 v4 最多仍是 `small_real_review`。如果来源多样性改善
 但 selected papers 相关性下降、`review-selection` 不干净或 evidence quality 明显弱于
 `demo-real-v3`，也不能升级标签。来源多样性不能以牺牲相关性和证据质量为代价。
