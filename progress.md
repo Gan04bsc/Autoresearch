@@ -195,6 +195,25 @@
 - Re-ran `litagent provider-smoke semantic-scholar --json` against the official endpoint; it
   succeeded with HTTP 200, `key_present=true`, and one returned sample result, so Semantic Scholar
   provider connectivity is now ready for a controlled v4 retry.
+- Re-ran `./demo-real-v4` with the official Semantic Scholar API and new search run
+  `demo-real-v4-official-ss`; the run used `--search-scope latest` and did not mix the previous
+  failed `demo-real-v4-initial` search results.
+- The official v4 run returned 801 raw results: arXiv 19, OpenAlex 361, and Semantic Scholar 421.
+  Semantic Scholar contributed effective candidates and entered the selected set.
+- After ranking refinement to remove off-topic smart-city, financial-application, climate-scenario,
+  and generic assisted-systematic-review items, final `review-selection` accepted 15 selected
+  papers with 0 questionable, 0 likely off-topic, and no missing subtopics.
+- Final official v4 selected-paper source distribution was arXiv 10, OpenAlex 5, and Semantic
+  Scholar 12 after dedup/source merging. Two selected papers were primary Semantic Scholar-only
+  discoveries, and several arXiv/OpenAlex papers gained Semantic Scholar metadata/citation support.
+- Official v4 downloaded 15/15 legal open PDFs, parsed 15/15 with local pypdf, generated 15 notes
+  from parsed Markdown, and used 0 abstract fallback notes.
+- Official v4 generated 93 evidence snippets, 80 high-quality snippets, 0% unknown-section ratio,
+  about 1.1% noise-section ratio, and about 3.2% low-score ratio.
+- Official v4 audit passed and `inspect-workspace` labeled the workspace
+  `source_diverse_real_review`. The remaining warning is that the Chinese draft report still has
+  2 candidate generic lines requiring Codex / Agent review before treating it as final research
+  synthesis.
 
 ## Validation
 
