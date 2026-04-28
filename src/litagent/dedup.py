@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -80,15 +81,55 @@ def find_duplicate_index(papers: list[dict[str, Any]], incoming: dict[str, Any])
     return None
 
 
+def title_buckets(title: str | None) -> set[str]:
+    normalized = normalize_title(title)
+    if not normalized:
+        return set()
+    tokens = normalized.split()
+    buckets = {f"exact:{normalized}", f"prefix:{normalized[:40]}"}
+    if len(tokens) >= 3:
+        buckets.add(f"first3:{' '.join(tokens[:3])}")
+    if len(tokens) >= 5:
+        buckets.add(f"first5:{' '.join(tokens[:5])}")
+    if len(tokens) >= 6:
+        buckets.add(f"ends:{tokens[0]} {' '.join(tokens[-3:])}")
+    return buckets
+
+
 def deduplicate(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     papers: list[dict[str, Any]] = []
+    exact_index: dict[tuple[str, str], int] = {}
+    bucket_index: dict[str, set[int]] = defaultdict(set)
+
+    def index_paper(index: int, paper: dict[str, Any]) -> None:
+        key = dedup_key(paper)
+        if key:
+            exact_index[key] = index
+        for bucket in title_buckets(paper.get("title")):
+            bucket_index[bucket].add(index)
+
     for row in rows:
         incoming = normalize_paper(row)
-        duplicate_index = find_duplicate_index(papers, incoming)
+        duplicate_index = None
+        incoming_key = dedup_key(incoming)
+        if incoming_key:
+            duplicate_index = exact_index.get(incoming_key)
+
+        if duplicate_index is None:
+            candidate_indexes: set[int] = set()
+            for bucket in title_buckets(incoming.get("title")):
+                candidate_indexes.update(bucket_index.get(bucket, set()))
+            for index in sorted(candidate_indexes):
+                if title_similarity(papers[index].get("title"), incoming.get("title")) >= 0.92:
+                    duplicate_index = index
+                    break
+
         if duplicate_index is None:
             papers.append(incoming)
+            index_paper(len(papers) - 1, incoming)
         else:
             papers[duplicate_index] = merge_papers(papers[duplicate_index], incoming)
+            index_paper(duplicate_index, papers[duplicate_index])
     return papers
 
 
@@ -199,8 +240,9 @@ def score_paper(paper: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         [str(value) for value in plan.get("include_keywords", [])],
         max_terms=4,
     )
+    plan_high_value_phrases = [str(value) for value in plan.get("high_value_phrases", [])]
     high_value_score, high_value_title_matches, high_value_abstract_matches = (
-        weighted_term_matches(scored, HIGH_VALUE_PHRASES, max_terms=4)
+        weighted_term_matches(scored, [*HIGH_VALUE_PHRASES, *plan_high_value_phrases], max_terms=4)
     )
     negative_terms = [*DEFAULT_NEGATIVE_TERMS, *[str(v) for v in plan.get("exclude_keywords", [])]]
     exclusion, negative_title_matches, negative_abstract_matches = weighted_term_matches(

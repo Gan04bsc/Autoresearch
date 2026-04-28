@@ -360,6 +360,39 @@
 - Added an Obsidian entry point for the new vault: `/app/workspace/autowiki-v4/START_HERE.md`.
 - Added a notice in the older `/app/workspace/wiki-vault-v4` template export telling readers to
   use `/app/workspace/autowiki-v4` for the AutoWiki-style knowledge map.
+- Re-clarified that `litagent` is a literature reading and management workbench, not a survey
+  generation system. Survey papers build field maps, technical/system papers track frontier
+  methods and innovation opportunities, and benchmark/dataset papers support evaluation design.
+- Updated the project rules so new-field literature workspaces may use 50-70 high-quality papers
+  when justified, with preference for top venues/journals, highly cited foundations, authoritative
+  technical reports, major benchmarks, and reproducible systems.
+- Ran a new-field MLLM literature workspace in `./demo-mllm-workspace` for
+  `多模态大模型文献阅读与技术前沿`, using real API search and a curated high-quality 67-paper
+  selection rather than forcing a 15-paper cap.
+- The MLLM run produced 3536 raw results across arXiv, OpenAlex, and Semantic Scholar; selected
+  papers cover 2 survey papers, 55 technical/system papers, and 10 benchmark papers after
+  role-aware reclassification.
+- Download and local pypdf parsing succeeded for 67/67 selected papers, notes used parsed Markdown
+  for 67/67, and abstract fallback remained 0.
+- Fixed reader performance for 50-70 paper workspaces by reusing sectioned Markdown units per
+  paper and avoiding expensive snippet scoring before keyword matches.
+- Fixed a catastrophic regex slow path in evidence snippet cleaning for PDF layout artifacts such
+  as dense numeric table/figure strings.
+- Corrected classifier behavior so `vision` no longer makes visual-language model papers
+  `position`, technical papers are not demoted to benchmark/dataset only because the abstract
+  mentions a benchmark, and rerunning `classify` overwrites stale `paper_role` values.
+- Updated evidence table generation to derive themes from `research_plan.json` coverage targets,
+  filter evidence by paper role, and skip strict theme snippets with weak theme matches.
+- `./demo-mllm-workspace` evidence table now has 69 snippets, 65 high-quality snippets,
+  0% unknown-section ratio, 0% noise-section ratio, and 0% low-score ratio.
+- `litagent inspect-workspace ./demo-mllm-workspace --json` now labels the run
+  `source_diverse_real_review`; the remaining report warning is acceptable because
+  `final_report.md` is only an optional display artifact.
+- Exported an AutoWiki-compatible Obsidian vault to `workspace/mllm-autowiki` and then rewrote
+  the key pages with Codex synthesis: `START_HERE.md`, `field-map.md`,
+  `technical-frontier.md`, `method-matrix.md`, `benchmark-matrix.md`,
+  `innovation-opportunities.md`, `reading-plan.md`, and `index.md`.
+- Verified the generated MLLM vault has 355 Markdown files and 0 missing Obsidian wikilinks.
 
 ## Known Issues
 

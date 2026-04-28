@@ -13,6 +13,10 @@
 - `final_report.md` 是否仍被视为可选展示产物，而不是默认终点。
 - 文献发现、分类、管理、领域地图、技术前沿、证据管理、研究空白和创新线索是否仍是核心输出。
 - AutoWiki-compatible export 是否只是知识组织层，不接管 search/download/parse。
+- 是否仍明确区分综述建图、技术论文追前沿、benchmark/dataset 建评估，而不是把项目重新做成
+  综述生成系统。
+- 新领域扩大到 50-70 篇时，是否有质量门禁，优先顶会、顶刊、高引用基础论文、权威技术报告、
+  主流 benchmark 和可复现系统。
 
 ## search / ranking
 
@@ -113,6 +117,8 @@
 - Position/background 论文是否只作为背景，不主导技术路线。
 - Survey papers 是否过多导致系统退回“写综述”路径。
 - Technical/system papers 是否足够支撑技术追踪。
+- 大规模新领域调研中，survey、technical/system、benchmark/dataset 的比例是否合理。
+- 低质量、弱相关或单一应用论文是否被降权，而不是挤占高质量代表论文。
 
 ## research workspace outputs
 

@@ -15,6 +15,25 @@ PAPER_ROLES = {
     "background_foundation",
 }
 
+DOMAIN_ROLE_ALIASES = {
+    "foundation_model": "system_paper",
+    "frontier_system": "system_paper",
+    "multimodal_agent": "system_paper",
+    "technical_method": "technical_method",
+    "instruction_data": "technical_method",
+    "alignment": "technical_method",
+    "reasoning": "technical_method",
+    "embodied_multimodal": "technical_method",
+    "video_understanding": "technical_method",
+    "hallucination": "technical_method",
+    "efficient_deployment": "technical_method",
+    "benchmark": "benchmark_or_dataset",
+    "benchmark_analysis": "benchmark_or_dataset",
+    "hallucination_benchmark": "benchmark_or_dataset",
+    "survey": "survey_or_review",
+    "survey_or_review": "survey_or_review",
+}
+
 READING_INTENTS = {
     "build_field_map",
     "extract_method",
@@ -109,7 +128,13 @@ def infer_reading_intents(paper_role: str) -> list[str]:
 def enrich_paper_role(paper: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_paper(paper)
     current_role = str(paper.get("paper_role") or "")
-    if current_role in PAPER_ROLES and (
+    domain_role = ""
+    if current_role and current_role not in PAPER_ROLES:
+        domain_role = current_role
+    if current_role in DOMAIN_ROLE_ALIASES:
+        paper_role = DOMAIN_ROLE_ALIASES[current_role]
+        role_evidence = f"domain paper_role={current_role}"
+    elif current_role in PAPER_ROLES and (
         current_role != "background_foundation" or paper.get("role_evidence")
     ):
         paper_role = current_role
@@ -127,6 +152,7 @@ def enrich_paper_role(paper: dict[str, Any]) -> dict[str, Any]:
 
     return {
         **normalized,
+        "domain_role": normalized.get("domain_role") or domain_role,
         "paper_role": paper_role,
         "reading_intent": intents,
         "role_evidence": role_evidence,

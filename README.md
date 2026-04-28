@@ -7,6 +7,16 @@ Agentic literature research workspace CLI.
 快速建立领域知识体系、追踪前沿技术、管理证据、发现研究空白并生成中文调研材料。
 `reports/final_report.md` 只是可选展示产物，不是项目核心终点。
 
+项目不应退化为“综述生成系统”。正确用法是：
+
+- 综述论文用于建立领域地图、术语体系、代表方向和历史脉络。
+- 技术论文和系统论文用于追踪前沿方法、架构设计、可复用模块、实现风险和创新机会。
+- Benchmark / dataset 论文用于建立评估体系、发现能力边界和设计质量门禁。
+
+全新领域调研可以处理 50-70 篇左右的高质量论文，但数量不是目标。优先级应给顶会、顶刊、
+高引用基础论文、权威技术报告、主流 benchmark 和可复现系统；偏应用、低引用、低相关或来源
+不可靠的论文应降权或排除。
+
 ## 当前阶段
 
 当前项目阶段正在从小规模真实综述原型（small_real_review prototype）收敛到
@@ -54,6 +64,7 @@ Agentic literature research workspace CLI.
 
 - 冒烟测试（smoke_test_run）：只验证流程，可以使用 mock，不代表真实综述质量。
 - 小规模真实综述（small_real_review）：使用真实检索，有 8 到 15 篇相关论文，下载和解析成功率合理，笔记主要来自 parsed Markdown，证据表存在，报告有论文级引用，但来源多样性、证据质量或报告深度仍有限。
+- 新领域文献工作台（field_literature_workspace）：面向陌生领域的 50-70 篇高质量集合，必须同时覆盖综述建图、技术前沿、系统/方法比较、benchmark/评估和创新机会，不以生成综述为终点。
 - 来源多样真实综述（source_diverse_real_review）：至少两个或更多真实数据源有效参与，selected papers 不被单一来源垄断，`review-selection` 干净，证据表质量较高，报告有明确论文级支撑。
 - 生产级综述（production_quality_review）：更大规模，有明确纳入/排除标准、可复查检索策略、高质量全文解析、结构化证据链、可靠中文研究级综合，并经过人工审阅或严格质量门禁。当前项目尚未达到。
 

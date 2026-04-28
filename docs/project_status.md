@@ -18,6 +18,11 @@
 
 `reports/final_report.md` 只是可选中文草稿或展示产物，不是项目核心终点。
 
+项目必须避免重新滑向“综述生成系统”。综述论文的价值是建立领域地图，技术论文和系统论文的
+价值是追踪前沿方法、架构和创新机会，benchmark/dataset 论文的价值是建立评估体系。全新领域
+可以处理 50-70 篇高质量论文，但必须优先选择顶会、顶刊、高引用基础论文、权威技术报告、
+主流 benchmark 和可复现系统，不能用低质量或弱相关论文凑数量。
+
 项目采用清晰的职责分工：
 
 - Codex / Agent 负责调度、检查、判断、质疑和中文综合。
@@ -225,6 +230,20 @@
   `snippet_score_explanation` 和 `quality_flags`。
 - 仍需要 Codex / Agent 人工判断和中文综合。
 
+### 新领域文献工作台（field_literature_workspace）
+
+用于陌生领域的系统性调研，不以写综述为终点。
+
+最低要求：
+
+- 论文规模通常为 50-70 篇，但必须通过质量筛选。
+- 综述论文足够支撑 `field_map`，但不能主导全部结论。
+- 技术论文和系统论文足够支撑 `technical_frontier`、`method_matrix` 和创新机会。
+- Benchmark / dataset 论文足够支撑 `benchmark_matrix` 和评估路线。
+- selected papers 优先来自顶会、顶刊、高引用基础论文、权威技术报告、主流 benchmark 或可复现系统。
+- 偏应用、低相关、低质量或只做单一任务的论文应被标记为 questionable/off-topic 或降权。
+- AutoWiki/Obsidian vault 应能让用户看到地图、论文速读、技术前沿、证据和创新线索。
+
 ### 来源多样真实验证（source_diverse_real_review）
 
 这是下一阶段需要验证的质量等级。
@@ -388,7 +407,8 @@
 
 ## 暂时不要做
 
-- 不要扩大到 30 或 50 篇论文。
+- 不要在质量门禁不足时盲目扩大论文数量。进入全新领域时可以扩大到 50-70 篇，但必须按综述、
+  技术论文、系统论文和 benchmark/dataset 分层筛选，并优先高质量来源。
 - 不要急着接很多外部 MCP。
 - 不要把 MinerU 作为默认解析路径。
 - 不要把 deterministic report 当作最终研究报告。

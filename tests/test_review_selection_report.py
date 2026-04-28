@@ -4,6 +4,7 @@ from uuid import uuid4
 from litagent.audit import audit_workspace
 from litagent.inspect import inspect_workspace
 from litagent.io import write_json, write_jsonl
+from litagent.paper_roles import enrich_paper_role
 from litagent.report import generate_final_report
 from litagent.review_selection import review_selection
 from litagent.schema import normalize_paper
@@ -181,6 +182,62 @@ def test_review_selection_flags_off_topic_papers() -> None:
     assert result["source_distribution"] == {"arxiv": 1, "openalex": 1}
 
 
+def test_review_selection_uses_plan_coverage_targets() -> None:
+    workspace = workspace_path("review-selection-coverage")
+    write_json(
+        workspace / "research_plan.json",
+        {
+            "topic": "multimodal large language models",
+            "coverage_targets": {
+                "survey map": ["survey"],
+                "benchmark evaluation": ["benchmark"],
+            },
+        },
+    )
+    write_jsonl(workspace / "data" / "selected_papers.jsonl", selected_papers()[:1])
+
+    result = review_selection(workspace)
+
+    assert set(result["missing_subtopics"]) == {"survey map", "benchmark evaluation"}
+    assert "literature review generation" not in result["missing_subtopics"]
+
+
+def test_review_selection_respects_curated_selection_reason() -> None:
+    workspace = workspace_path("review-selection-curated")
+    paper = normalize_paper(
+        {
+            "paper_id": "p-curated",
+            "title": "Multimodal Chain-of-Thought Reasoning in Language Models",
+            "abstract": "A foundational reasoning paper selected by the agent.",
+            "year": 2023,
+            "source": ["openalex"],
+            "relevance_score": 0.05,
+            "exclusion_score": 0.0,
+            "final_score": 0.1,
+            "curation_reason": "highly cited background for multimodal reasoning",
+            "score_explanation": {"matched_terms": {"high_value_title": [], "include_title": []}},
+        }
+    )
+    write_jsonl(workspace / "data" / "selected_papers.jsonl", [paper])
+
+    result = review_selection(workspace)
+
+    assert len(result["likely_relevant"]) == 1
+    assert not result["likely_off_topic"]
+    assert "curated selection" in result["likely_relevant"][0]["reasons"][0]
+
+
+def test_domain_specific_paper_roles_map_to_workspace_roles() -> None:
+    foundation = enrich_paper_role({"paper_id": "p-a", "paper_role": "foundation_model"})
+    benchmark = enrich_paper_role({"paper_id": "p-b", "paper_role": "hallucination_benchmark"})
+    method = enrich_paper_role({"paper_id": "p-c", "paper_role": "instruction_data"})
+
+    assert foundation["paper_role"] == "system_paper"
+    assert foundation["domain_role"] == "foundation_model"
+    assert benchmark["paper_role"] == "benchmark_or_dataset"
+    assert method["paper_role"] == "technical_method"
+
+
 def test_report_contains_synthesis_sections() -> None:
     workspace = workspace_path("report")
     write_review_workspace(workspace)
@@ -220,4 +277,45 @@ def test_inspect_reports_research_workspace_quality_signals() -> None:
     assert workspace_quality["workspace_artifacts"]["field_map"] is False
     assert any(
         "Research workspace artifacts" in warning for warning in workspace_quality["warnings"]
+    )
+
+
+def test_inspect_does_not_downgrade_curated_low_score_selection() -> None:
+    workspace = workspace_path("inspect-curated-low-score")
+    write_review_workspace(workspace, source_diverse=True)
+    papers = selected_papers()[:1]
+    papers[0]["relevance_score"] = 0.05
+    papers[0]["curation_reason"] = "field-shaping system paper selected by Codex"
+    write_jsonl(workspace / "data" / "selected_papers.jsonl", papers)
+    write_jsonl(
+        workspace / "data" / "raw_results.jsonl",
+        [
+            {**papers[0], "paper_id": "p-r1", "source": ["arxiv"], "source_query": "real"},
+            {**papers[0], "paper_id": "p-r2", "source": ["openalex"], "source_query": "real"},
+            {
+                **papers[0],
+                "paper_id": "p-r3",
+                "source": ["semantic_scholar"],
+                "source_query": "real",
+            },
+            {**papers[0], "paper_id": "p-r4", "source": ["arxiv"], "source_query": "real"},
+            {**papers[0], "paper_id": "p-r5", "source": ["openalex"], "source_query": "real"},
+            {
+                **papers[0],
+                "paper_id": "p-r6",
+                "source": ["semantic_scholar"],
+                "source_query": "real",
+            },
+            {**papers[0], "paper_id": "p-r7", "source": ["arxiv"], "source_query": "real"},
+            {**papers[0], "paper_id": "p-r8", "source": ["openalex"], "source_query": "real"},
+        ],
+    )
+    generate_final_report(workspace)
+    audit_workspace(workspace)
+
+    result = inspect_workspace(workspace)
+
+    assert not any(
+        "low deterministic relevance" in concern
+        for concern in result["selected_paper_relevance"]["concerns"]
     )

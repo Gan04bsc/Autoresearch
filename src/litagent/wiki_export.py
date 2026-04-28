@@ -35,8 +35,16 @@ def wikilink(slug: str) -> str:
     return f"[[{slug}]]"
 
 
-def topic_links() -> str:
-    return ", ".join(wikilink(topic) for topic in DEFAULT_TOPICS)
+def topic_slugs_from_plan(plan: dict[str, Any]) -> list[str]:
+    coverage_targets = plan.get("coverage_targets")
+    if not isinstance(coverage_targets, dict) or not coverage_targets:
+        return DEFAULT_TOPICS
+    topics = [clean_filename(str(topic)) for topic in coverage_targets if str(topic).strip()]
+    return topics or DEFAULT_TOPICS
+
+
+def topic_links(topics: list[str] | None = None) -> str:
+    return ", ".join(wikilink(topic) for topic in (topics or DEFAULT_TOPICS))
 
 
 def clean_filename(value: str) -> str:
@@ -145,7 +153,10 @@ def note_excerpt(workspace: Path, paper_id: str, limit: int = 500) -> str:
 
 
 def source_page_content(
-    workspace: Path, paper: dict[str, Any], evidence_items: list[dict[str, Any]]
+    workspace: Path,
+    paper: dict[str, Any],
+    evidence_items: list[dict[str, Any]],
+    topics: list[str],
 ) -> str:
     paper_id = paper["paper_id"]
     role = paper.get("paper_role") or "background_foundation"
@@ -187,7 +198,7 @@ def source_page_content(
         f"- 来源: {sources}",
         f"- 论文角色: `{role}`（{ROLE_LABELS.get(role, role)}）",
         f"- 阅读意图: {', '.join(intents) or '待判断'}",
-        f"- 主题链接: {topic_links()}",
+        f"- 主题链接: {topic_links(topics)}",
         "",
         "## 摘要式中文说明",
         "",
@@ -213,7 +224,10 @@ def source_page_content(
 
 
 def source_summary_page_content(
-    workspace: Path, paper: dict[str, Any], evidence_items: list[dict[str, Any]]
+    workspace: Path,
+    paper: dict[str, Any],
+    evidence_items: list[dict[str, Any]],
+    topics: list[str],
 ) -> str:
     paper_id = paper["paper_id"]
     fields = read_paper_evidence_fields(workspace, paper_id)
@@ -269,7 +283,7 @@ def source_summary_page_content(
         f"- 主要发现：{best_field_snippet(fields, 'key_findings')}",
         f"- 局限：{best_field_snippet(fields, 'limitations')}",
         "- 对 litagent 的价值："
-        f"{best_field_snippet(fields, 'relevance_to_multi_agent_literature_review_automation')}",
+        f"{best_field_snippet(fields, 'relevance_to_multi_agent_lit_review_automation')}",
         "",
         "## 摘要式中文说明",
         "",
@@ -281,7 +295,7 @@ def source_summary_page_content(
         "",
         "## 相关主题",
         "",
-        f"- {topic_links()}",
+        f"- {topic_links(topics)}",
         "",
     ]
     return "\n".join(lines)
@@ -352,13 +366,14 @@ def write_raw_paper_pages(
     out_dir: Path,
     papers: list[dict[str, Any]],
     evidence_by_paper: dict[str, list[dict[str, Any]]],
+    topics: list[str],
 ) -> None:
     for paper in papers:
         paper_dir = out_dir / "raw" / paper["paper_id"]
         paper_dir.mkdir(parents=True, exist_ok=True)
         evidence_items = evidence_by_paper.get(paper["paper_id"], [])
         (paper_dir / "source.md").write_text(
-            source_page_content(workspace, paper, evidence_items),
+            source_page_content(workspace, paper, evidence_items, topics),
             encoding="utf-8",
         )
         write_json(paper_dir / "metadata.json", strip_secret_fields(paper))
@@ -370,6 +385,7 @@ def write_visible_paper_pages(
     out_dir: Path,
     papers: list[dict[str, Any]],
     evidence_by_paper: dict[str, list[dict[str, Any]]],
+    topics: list[str],
 ) -> None:
     for relative in ("kb/sources", "kb/notes", "kb/evidence"):
         (out_dir / relative).mkdir(parents=True, exist_ok=True)
@@ -377,7 +393,7 @@ def write_visible_paper_pages(
         paper_id = paper["paper_id"]
         evidence_items = evidence_by_paper.get(paper_id, [])
         (out_dir / "kb" / "sources" / f"{paper_id}.md").write_text(
-            source_summary_page_content(workspace, paper, evidence_items),
+            source_summary_page_content(workspace, paper, evidence_items, topics),
             encoding="utf-8",
         )
         (out_dir / "kb" / "notes" / f"note-{paper_id}.md").write_text(
@@ -401,7 +417,7 @@ def paper_link(paper: dict[str, Any]) -> str:
     return wikilink(paper["paper_id"])
 
 
-def write_index(out_dir: Path, papers: list[dict[str, Any]]) -> None:
+def write_index(out_dir: Path, papers: list[dict[str, Any]], topics: list[str]) -> None:
     counts = Counter(paper["paper_role"] for paper in papers)
     lines = [
         "# 文献工作台入口",
@@ -424,7 +440,7 @@ def write_index(out_dir: Path, papers: list[dict[str, Any]]) -> None:
         "",
         "## 主题入口",
         "",
-        f"- {topic_links()}",
+        f"- {topic_links(topics)}",
         "",
         "## 论文角色分布",
         "",
@@ -529,7 +545,9 @@ def write_theme_evidence_pages(
         )
 
 
-def write_field_map(out_dir: Path, grouped: dict[str, list[dict[str, Any]]]) -> None:
+def write_field_map(
+    out_dir: Path, grouped: dict[str, list[dict[str, Any]]], topics: list[str]
+) -> None:
     papers = [
         *grouped.get("survey_or_review", []),
         *grouped.get("background_foundation", []),
@@ -551,7 +569,7 @@ def write_field_map(out_dir: Path, grouped: dict[str, list[dict[str, Any]]]) -> 
             "",
             "## 主题节点",
             "",
-            f"- {topic_links()}",
+            f"- {topic_links(topics)}",
             "",
         ]
     )
@@ -724,8 +742,9 @@ def write_reading_plan(out_dir: Path, grouped: dict[str, list[dict[str, Any]]]) 
 def write_topic_system_benchmark_pages(
     out_dir: Path,
     grouped: dict[str, list[dict[str, Any]]],
+    topics: list[str],
 ) -> None:
-    for topic in DEFAULT_TOPICS:
+    for topic in topics:
         (out_dir / "kb" / "topics" / f"{topic}.md").write_text(
             "\n".join(
                 [
@@ -771,6 +790,7 @@ def write_kb_pages(
     papers: list[dict[str, Any]],
     evidence_by_paper: dict[str, list[dict[str, Any]]],
     evidence_by_theme: dict[str, list[dict[str, Any]]],
+    topics: list[str],
 ) -> None:
     for relative in (
         "kb/topics",
@@ -784,17 +804,17 @@ def write_kb_pages(
         (out_dir / relative).mkdir(parents=True, exist_ok=True)
     grouped = role_groups(papers)
     write_start_here(out_dir)
-    write_index(out_dir, papers)
+    write_index(out_dir, papers, topics)
     write_source_index(out_dir, papers)
     write_evidence_index(out_dir, papers, evidence_by_theme)
-    write_field_map(out_dir, grouped)
+    write_field_map(out_dir, grouped, topics)
     write_technical_frontier(out_dir, grouped)
     write_method_matrix(out_dir, grouped)
     write_benchmark_matrix(out_dir, grouped)
     write_innovation_opportunities(out_dir, grouped, evidence_by_paper)
     write_reading_plan(out_dir, grouped)
     write_theme_evidence_pages(out_dir, evidence_by_theme)
-    write_topic_system_benchmark_pages(out_dir, grouped)
+    write_topic_system_benchmark_pages(out_dir, grouped, topics)
 
 
 def export_wiki(
@@ -808,11 +828,13 @@ def export_wiki(
         enrich_paper_role(normalize_paper(paper))
         for paper in read_jsonl(workspace / "data" / "selected_papers.jsonl")
     ]
+    plan = read_json(workspace / "research_plan.json", default={}) or {}
+    topics = topic_slugs_from_plan(plan)
     evidence_by_paper = read_evidence_by_paper(workspace)
     evidence_by_theme = read_evidence_by_theme(workspace)
-    write_raw_paper_pages(workspace, out_dir, papers, evidence_by_paper)
-    write_visible_paper_pages(workspace, out_dir, papers, evidence_by_paper)
-    write_kb_pages(out_dir, papers, evidence_by_paper, evidence_by_theme)
+    write_raw_paper_pages(workspace, out_dir, papers, evidence_by_paper, topics)
+    write_visible_paper_pages(workspace, out_dir, papers, evidence_by_paper, topics)
+    write_kb_pages(out_dir, papers, evidence_by_paper, evidence_by_theme, topics)
     role_distribution = dict(sorted(Counter(paper["paper_role"] for paper in papers).items()))
     result = {
         "ok": True,
@@ -821,6 +843,7 @@ def export_wiki(
         "format": export_format,
         "paper_count": len(papers),
         "role_distribution": role_distribution,
+        "topics": topics,
         "generated_files": [
             "START_HERE.md",
             "kb/index.md",

@@ -22,9 +22,10 @@ POSITION_TERMS = [
     "position paper",
     "perspective",
     "opinion",
-    "vision",
     "agenda",
     "roadmap",
+    "research agenda",
+    "future directions",
     "conceptual argument",
     "argues that",
     "we argue",
@@ -136,13 +137,13 @@ def classify_paper(paper: dict[str, Any]) -> tuple[str, str]:
     if term := first_matching_term(text, SYSTEM_TERMS):
         return "system", f"matched system keyword `{term}` in title/abstract/venue"
 
-    for paper_type, terms in (("dataset", DATASET_TERMS), ("benchmark", BENCHMARK_TERMS)):
-        if term := first_matching_term(text, terms):
-            return paper_type, f"matched {paper_type} keyword `{term}` in title/abstract/venue"
-
     for term in TECHNICAL_TERMS:
         if term in text:
             return "technical", f"matched technical keyword `{term}`"
+
+    for paper_type, terms in (("dataset", DATASET_TERMS), ("benchmark", BENCHMARK_TERMS)):
+        if term := first_matching_term(text, terms):
+            return paper_type, f"matched {paper_type} keyword `{term}` in title/abstract/venue"
 
     return "unknown", "no deterministic rule matched"
 
@@ -157,7 +158,25 @@ def classify_papers(workspace: Path) -> list[dict[str, Any]]:
     by_id: dict[str, dict[str, Any]] = {}
     for paper in selected:
         paper_type, evidence = classify_paper(paper)
-        updated = enrich_paper_role({**paper, "paper_type": paper_type, "type_evidence": evidence})
+        role_input = {
+            key: value
+            for key, value in paper.items()
+            if key not in {"paper_role", "reading_intent", "role_evidence"}
+        }
+        current_role = str(paper.get("paper_role") or "")
+        if current_role and current_role not in {
+            "survey_or_review",
+            "technical_method",
+            "system_paper",
+            "benchmark_or_dataset",
+            "position_or_perspective",
+            "application_case",
+            "background_foundation",
+        }:
+            role_input["domain_role"] = current_role
+        updated = enrich_paper_role(
+            {**role_input, "paper_type": paper_type, "type_evidence": evidence}
+        )
         classified.append(updated)
         by_id[updated["paper_id"]] = updated
 

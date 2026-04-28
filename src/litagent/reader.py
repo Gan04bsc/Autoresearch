@@ -211,21 +211,24 @@ def extract_matching_evidence_items(
     *,
     limit: int = 3,
     default_section: str | None = None,
+    units: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     items: list[tuple[float, int, dict[str, Any]]] = []
     seen: set[str] = set()
     lower_terms = [term.lower() for term in terms]
-    for unit in sectioned_units(text):
+    candidate_units = units if units is not None else sectioned_units(text)
+    for unit in candidate_units:
+        raw_text = unit["text"]
+        lower = raw_text.lower()
+        matched_count = sum(1 for term in lower_terms if term in lower)
+        if matched_count == 0:
+            continue
         section = unit["section"]
         if section == "Unknown" and default_section:
             section = default_section
-        scored = score_snippet(unit["text"], section=section, target_terms=terms)
+        scored = score_snippet(raw_text, section=section, target_terms=terms)
         clean = scored["snippet"]
-        lower = clean.lower()
         if not clean or scored["snippet_score"] < 0.15:
-            continue
-        matched_count = sum(1 for term in lower_terms if term in lower)
-        if matched_count == 0:
             continue
         key = clean.lower()
         if key in seen:
@@ -249,11 +252,18 @@ def field_from_sources(
     text: str,
     text_source: str,
     abstract: str,
+    full_text_units: list[dict[str, str]] | None = None,
+    abstract_units: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     spec = EVIDENCE_FIELDS[field]
     full_text_available = bool(text.strip()) and not text_source.startswith("abstract")
     full_text_items = (
-        extract_matching_evidence_items(text, spec["terms"], limit=3)
+        extract_matching_evidence_items(
+            text,
+            spec["terms"],
+            limit=3,
+            units=full_text_units,
+        )
         if full_text_available
         else []
     )
@@ -272,6 +282,7 @@ def field_from_sources(
         spec["terms"],
         limit=1,
         default_section="Abstract",
+        units=abstract_units,
     )
     if abstract_items:
         return {
@@ -294,12 +305,17 @@ def extract_paper_evidence(
     paper: dict[str, Any], text: str, text_source: str
 ) -> dict[str, Any]:
     abstract = paper.get("abstract") or ""
+    full_text_available = bool(text.strip()) and not text_source.startswith("abstract")
+    full_text_units = sectioned_units(text) if full_text_available else []
+    abstract_units = sectioned_units(abstract) if abstract.strip() else []
     fields = {
         field: field_from_sources(
             field=field,
             text=text,
             text_source=text_source,
             abstract=abstract,
+            full_text_units=full_text_units,
+            abstract_units=abstract_units,
         )
         for field in EVIDENCE_FIELDS
     }

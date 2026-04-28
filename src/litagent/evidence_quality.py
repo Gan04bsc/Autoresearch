@@ -207,7 +207,11 @@ def clean_snippet(raw: str) -> tuple[str, list[str]]:
         flags.append("table_like")
     if re.match(r"^(fig\.?|figure)\s+\d+", snippet, flags=re.IGNORECASE):
         flags.append("figure_caption")
-    if re.match(r"^(\d+\s*){4,}$", snippet) or re.search(r"\.{6,}", snippet):
+    compact_digits = re.sub(r"\s+", "", snippet)
+    if (
+        (len(compact_digits) >= 4 and compact_digits.isdigit())
+        or re.search(r"\.{6,}", snippet)
+    ):
         flags.append("layout_artifact")
     if len(re.findall(r"\[\d+(,\s*\d+)*\]|\([A-Z][A-Za-z-]+ et al\.,? \d{4}\)", snippet)) >= 3:
         flags.append("citation_dense")

@@ -146,11 +146,24 @@ def choose_quality_level(
     source_diverse = len(source_counts) >= 3 and dominant_share <= 0.75
     synthesis_ready = report_has_synthesis_structure(report_text)
 
-    if selected_count >= 20 and source_diverse and parse_success_rate >= 0.9 and synthesis_ready:
-        return "production_quality_review"
     if selected_count >= 8 and source_diverse and synthesis_ready:
         return "source_diverse_real_review"
     return "small_real_review"
+
+
+def has_selection_quality_override(row: dict[str, Any]) -> bool:
+    if row.get("curation_reason"):
+        return True
+    explanation = row.get("score_explanation") or {}
+    matched = explanation.get("matched_terms") if isinstance(explanation, dict) else {}
+    if not isinstance(matched, dict):
+        return False
+    high_value = [
+        *(matched.get("high_value_title") or []),
+        *(matched.get("high_value_abstract") or []),
+        *(matched.get("include_title") or []),
+    ]
+    return bool(high_value)
 
 
 def inspect_workspace(workspace: Path) -> dict[str, Any]:
@@ -199,7 +212,10 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
         selected_concerns.append("No selected papers are available.")
     else:
         low_relevance = [
-            row for row in selected if float(row.get("relevance_score") or 0.0) < 0.25
+            row
+            for row in selected
+            if float(row.get("relevance_score") or 0.0) < 0.25
+            and not has_selection_quality_override(row)
         ]
         if low_relevance:
             selected_concerns.append(

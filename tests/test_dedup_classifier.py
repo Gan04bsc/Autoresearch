@@ -1,6 +1,16 @@
-from litagent.classifier import classify_paper
+from pathlib import Path
+from uuid import uuid4
+
+from litagent.classifier import classify_paper, classify_papers
 from litagent.dedup import deduplicate, score_paper
+from litagent.io import read_jsonl, write_jsonl
 from litagent.paper_roles import enrich_paper_role
+
+
+def workspace_path(name: str) -> Path:
+    path = Path(".tmp") / "tests" / f"{name}-{uuid4().hex}"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def test_deduplicate_merges_same_doi_and_sources() -> None:
@@ -125,6 +135,59 @@ def test_classifier_does_not_treat_surveygen_name_as_survey() -> None:
 
     assert paper_type == "system"
     assert "system" in evidence
+
+
+def test_classifier_does_not_treat_vision_language_models_as_position() -> None:
+    paper_type, evidence = classify_paper(
+        {
+            "title": "Visual Instruction Tuning",
+            "abstract": (
+                "We introduce LLaVA, a multimodal model trained for visual instruction "
+                "following and evaluated on multimodal benchmarks."
+            ),
+        }
+    )
+
+    assert paper_type in {"technical", "system"}
+    assert "position" not in evidence
+
+
+def test_classifier_does_not_demote_technical_paper_due_to_abstract_benchmark_word() -> None:
+    paper_type, evidence = classify_paper(
+        {
+            "title": "Visual Instruction Tuning",
+            "abstract": (
+                "We introduce a multimodal instruction-tuned model and present the first "
+                "benchmark to study visual instruction-following capability."
+            ),
+        }
+    )
+
+    assert paper_type == "technical"
+    assert "technical" in evidence
+
+
+def test_classify_papers_recomputes_stale_paper_role() -> None:
+    workspace = workspace_path("stale-role")
+    stale = {
+        "paper_id": "p-stale",
+        "title": "Visual Instruction Tuning",
+        "abstract": (
+            "We introduce LLaVA, a multimodal model trained for visual instruction "
+            "following and evaluated on multimodal benchmarks."
+        ),
+        "paper_type": "position",
+        "paper_role": "position_or_perspective",
+        "role_evidence": "old classifier state",
+    }
+    write_jsonl(workspace / "data" / "selected_papers.jsonl", [stale])
+    write_jsonl(workspace / "data" / "papers.jsonl", [stale])
+
+    classify_papers(workspace)
+    [updated] = read_jsonl(workspace / "data" / "selected_papers.jsonl")
+
+    assert updated["paper_type"] in {"technical", "system", "benchmark", "dataset"}
+    assert updated["paper_role"] != "position_or_perspective"
 
 
 def test_paper_role_and_reading_intent_follow_paper_type() -> None:

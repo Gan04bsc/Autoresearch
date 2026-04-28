@@ -6,7 +6,7 @@ from typing import Any
 
 from litagent.io import read_json, read_jsonl
 
-SUBTOPIC_TERMS = {
+COVERAGE_TARGETS = {
     "literature review generation": ["literature review generation", "review generation"],
     "automated literature review": ["automated literature review", "review automation"],
     "systematic review automation": ["systematic review automation", "systematic review"],
@@ -27,6 +27,8 @@ def score_reason(paper: dict[str, Any]) -> str:
     include = [*terms.get("include_title", []), *terms.get("include_abstract", [])]
     negative = [*terms.get("negative_title", []), *terms.get("negative_abstract", [])]
     parts: list[str] = []
+    if paper.get("curation_reason"):
+        parts.append("curated selection: " + str(paper["curation_reason"]))
     if high_value:
         parts.append("high-value phrase match: " + ", ".join(high_value[:4]))
     if include:
@@ -62,6 +64,7 @@ def classify_selection_concern(paper: dict[str, Any]) -> tuple[str, list[str]]:
         *terms["include_abstract"],
     ]
     reasons = [score_reason(paper)]
+    curated = bool(paper.get("curation_reason"))
 
     if not paper.get("abstract"):
         reasons.append("missing abstract")
@@ -70,6 +73,11 @@ def classify_selection_concern(paper: dict[str, Any]) -> tuple[str, list[str]]:
     if negative >= 0.25:
         reasons.append(f"negative-term score is high ({negative:.2f})")
         return "likely_off_topic", reasons
+    if curated:
+        if negative >= 0.15:
+            reasons.append(f"curated paper still needs inspection: negative={negative:.2f}")
+            return "questionable", reasons
+        return "likely_relevant", reasons
     if not positive_matches and relevance < 0.20:
         reasons.append(f"low relevance score ({relevance:.2f}) with no positive term evidence")
         return "likely_off_topic", reasons
@@ -95,10 +103,26 @@ def distribution_by_year(papers: list[dict[str, Any]]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
-def missing_subtopics(papers: list[dict[str, Any]]) -> list[str]:
+def coverage_targets_from_plan(plan: dict[str, Any]) -> dict[str, list[str]]:
+    raw_targets = plan.get("coverage_targets")
+    if isinstance(raw_targets, dict):
+        targets: dict[str, list[str]] = {}
+        for label, terms in raw_targets.items():
+            if isinstance(terms, list):
+                targets[str(label)] = [str(term).lower() for term in terms if str(term).strip()]
+            elif str(terms).strip():
+                targets[str(label)] = [str(terms).lower()]
+        if targets:
+            return targets
+    return COVERAGE_TARGETS
+
+
+def missing_subtopics(
+    papers: list[dict[str, Any]], plan: dict[str, Any] | None = None
+) -> list[str]:
     joined = "\n".join(paper_text(paper) for paper in papers)
     missing: list[str] = []
-    for label, terms in SUBTOPIC_TERMS.items():
+    for label, terms in coverage_targets_from_plan(plan or {}).items():
         if not any(term in joined for term in terms):
             missing.append(label)
     return missing
@@ -129,7 +153,7 @@ def review_selection(workspace: Path) -> dict[str, Any]:
         label, reasons = classify_selection_concern(paper)
         grouped[label].append(paper_preview(paper, reasons))
 
-    missing = missing_subtopics(papers)
+    missing = missing_subtopics(papers, plan)
     if grouped["likely_off_topic"]:
         recommended = "Refine the research plan or ranking terms and rerun dedup before download."
     elif grouped["questionable"]:

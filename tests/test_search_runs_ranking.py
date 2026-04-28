@@ -84,6 +84,27 @@ def test_topic_sensitive_ranking_explains_positive_and_negative_matches() -> Non
     assert off_topic_score["exclusion_score"] > 0
 
 
+def test_plan_specific_high_value_phrases_affect_ranking() -> None:
+    plan = {
+        "include_keywords": ["multimodal large language model"],
+        "high_value_phrases": ["BLIP-2"],
+        "date_range": {"from": 2018, "to": 2026},
+    }
+    paper = {
+        "title": "BLIP-2: Bootstrapping Language-Image Pre-training",
+        "abstract": "A foundational vision-language model.",
+        "year": 2023,
+        "citation_count": 10,
+        "pdf_url": "https://arxiv.org/pdf/1.pdf",
+        "source": ["arxiv"],
+    }
+
+    scored = score_paper(paper, plan)
+
+    assert scored["score_explanation"]["matched_terms"]["high_value_title"] == ["blip-2"]
+    assert scored["score_explanation"]["component_scores"]["high_value_phrase"] > 0
+
+
 def test_semantic_scholar_429_error_mentions_key_configuration() -> None:
     message = provider_error_message("semantic_scholar", RuntimeError("HTTP Error 429"))
 

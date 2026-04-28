@@ -1,6 +1,7 @@
 from pathlib import Path
 from uuid import uuid4
 
+from litagent import reader as reader_module
 from litagent.audit import REQUIRED_REPORT_SECTIONS, audit_workspace
 from litagent.evidence import THEME_SPECS, build_evidence_table, paper_matches_theme
 from litagent.evidence_quality import clean_snippet, normalize_section_title, score_snippet
@@ -148,6 +149,24 @@ def test_read_extracts_parsed_markdown_evidence() -> None:
     assert "quality_flags" in item
 
 
+def test_reader_reuses_sectioned_units_per_paper(monkeypatch) -> None:
+    workspace = workspace_path("reader-section-cache")
+    paper = write_evidence_workspace(workspace)
+    original_sectioned_units = reader_module.sectioned_units
+    calls: list[int] = []
+
+    def counted_sectioned_units(text: str) -> list[dict[str, str]]:
+        calls.append(len(text))
+        return original_sectioned_units(text)
+
+    monkeypatch.setattr(reader_module, "sectioned_units", counted_sectioned_units)
+
+    generate_notes(workspace)
+
+    assert (workspace / "library" / "notes" / f"{paper['paper_id']}.md").is_file()
+    assert len(calls) == 2
+
+
 def test_section_recognition_and_snippet_scoring() -> None:
     assert normalize_section_title("2. Methodology") == "Method"
     assert normalize_section_title("## Evaluation") == "Evaluation"
@@ -214,6 +233,26 @@ def test_build_evidence_table_generates_json_and_markdown() -> None:
     assert "snippet_score" in snippet
     assert "snippet_score_explanation" in snippet
     assert "quality_flags" in snippet
+
+
+def test_build_evidence_table_uses_plan_coverage_targets_when_available() -> None:
+    workspace = workspace_path("evidence-table-coverage")
+    write_evidence_workspace(workspace)
+    plan = read_json(workspace / "research_plan.json")
+    plan["coverage_targets"] = {
+        "foundation models and systems": ["framework", "agent"],
+        "benchmark and evaluation": ["benchmark", "evaluation"],
+    }
+    write_json(workspace / "research_plan.json", plan)
+    generate_notes(workspace)
+
+    result = build_evidence_table(workspace)
+
+    themes = {row["theme"]: row for row in result["themes"]}
+    assert set(themes) == {"foundation models and systems", "benchmark and evaluation"}
+    assert themes["foundation models and systems"]["supporting_papers"] == [
+        "p-aaaaaaaaaaaa"
+    ]
 
 
 def test_strict_evidence_themes_require_theme_specific_terms() -> None:

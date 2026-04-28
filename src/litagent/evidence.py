@@ -5,6 +5,7 @@ from typing import Any
 
 from litagent.evidence_quality import confidence_from_score, score_snippet
 from litagent.io import read_json, read_jsonl, write_json
+from litagent.paper_roles import enrich_paper_role
 from litagent.reader import extract_paper_evidence, paper_text
 from litagent.schema import normalize_paper
 
@@ -116,6 +117,88 @@ THEME_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
+def theme_specs_for_plan(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    coverage_targets = plan.get("coverage_targets")
+    if not isinstance(coverage_targets, dict) or not coverage_targets:
+        return THEME_SPECS
+
+    specs: dict[str, dict[str, Any]] = {}
+    for raw_theme, raw_terms in coverage_targets.items():
+        theme = str(raw_theme)
+        terms = [str(term) for term in raw_terms or [] if str(term).strip()]
+        lower_theme = theme.lower()
+        fields = [
+            "proposed_system_or_method",
+            "evaluation_setup",
+            "datasets_or_benchmarks",
+            "key_findings",
+            "limitations",
+        ]
+        if any(term in lower_theme for term in ("survey", "field map", "领域")):
+            fields = [
+                "problem_addressed",
+                "proposed_system_or_method",
+                "key_findings",
+                "limitations",
+            ]
+            allowed_roles = ["survey_or_review", "background_foundation"]
+            terms.extend(
+                [
+                    "survey",
+                    "taxonomy",
+                    "categorize",
+                    "classification",
+                    "evaluation",
+                    "benchmark",
+                    "capability",
+                ]
+            )
+        elif any(term in lower_theme for term in ("benchmark", "evaluation", "评测", "评估")):
+            fields = [
+                "evaluation_setup",
+                "datasets_or_benchmarks",
+                "key_findings",
+                "limitations",
+            ]
+            allowed_roles = ["benchmark_or_dataset"]
+        elif any(
+            term in lower_theme
+            for term in ("system", "foundation", "frontier", "agent", "系统", "前沿")
+        ):
+            fields = [
+                "proposed_system_or_method",
+                "pipeline_stages",
+                "evaluation_setup",
+                "key_findings",
+                "limitations",
+            ]
+            allowed_roles = ["system_paper", "technical_method"]
+        elif any(term in lower_theme for term in ("hallucination", "reasoning", "alignment")):
+            fields = [
+                "problem_addressed",
+                "proposed_system_or_method",
+                "evaluation_setup",
+                "key_findings",
+                "limitations",
+            ]
+            allowed_roles = ["technical_method", "benchmark_or_dataset"]
+        else:
+            allowed_roles = []
+
+        specs[theme] = {
+            "fields": fields,
+            "terms": terms or [theme],
+            "strict_terms": True,
+            "claim": (
+                f"当前工作台需要围绕“{theme}”汇总论文级证据，"
+                "支持领域地图、技术前沿或评估体系建设。"
+            ),
+        }
+        if allowed_roles:
+            specs[theme]["allowed_roles"] = allowed_roles
+    return specs
+
+
 def load_paper_evidence(workspace: Path, paper: dict[str, Any]) -> dict[str, Any]:
     metadata = read_json(
         workspace / "library" / "metadata" / f"{paper['paper_id']}.json",
@@ -191,6 +274,8 @@ def evidence_items_for_theme(
                 target_terms=[*spec["terms"], theme],
             )
             score = float(scored["snippet_score"])
+            if spec.get("strict_terms") and "weak_theme_match" in scored["quality_flags"]:
+                continue
             if score < 0.12:
                 continue
             dedup_key = (paper["paper_id"], scored["snippet"].lower())
@@ -257,6 +342,9 @@ def theme_row(
     supporting: list[str] = []
     snippets: list[dict[str, Any]] = []
     for paper in papers:
+        allowed_roles = set(spec.get("allowed_roles") or [])
+        if allowed_roles and paper.get("paper_role") not in allowed_roles:
+            continue
         evidence = evidences[paper["paper_id"]]
         if not paper_matches_theme(paper, evidence, spec):
             continue
@@ -337,12 +425,15 @@ def evidence_table_markdown(result: dict[str, Any]) -> str:
 
 def build_evidence_table(workspace: Path) -> dict[str, Any]:
     papers = [
-        normalize_paper(paper) for paper in read_jsonl(workspace / "data" / "selected_papers.jsonl")
+        enrich_paper_role(normalize_paper(paper))
+        for paper in read_jsonl(workspace / "data" / "selected_papers.jsonl")
     ]
+    plan = read_json(workspace / "research_plan.json", default={}) or {}
+    theme_specs = theme_specs_for_plan(plan)
     evidences = {paper["paper_id"]: load_paper_evidence(workspace, paper) for paper in papers}
     themes = [
         theme_row(theme, spec, papers, evidences)
-        for theme, spec in THEME_SPECS.items()
+        for theme, spec in theme_specs.items()
     ]
     result = {
         "workspace": str(workspace),
