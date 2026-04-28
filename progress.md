@@ -161,6 +161,22 @@
 - Documented v4 failure strategy: if Semantic Scholar still has no effective contribution, or if
   source diversity improves at the cost of relevance or evidence quality, the run must not be
   upgraded to `source_diverse_real_review`.
+- Ran `./demo-real-v4` as the source-diversity validation attempt for
+  `多智能体文献综述自动化工具` with search run `demo-real-v4-initial`.
+- `./demo-real-v4` returned 321 raw results from arXiv/OpenAlex; Semantic Scholar was attempted
+  through the configured key/proxy path but contributed 0 usable candidates because every query
+  returned HTTP 403 Forbidden.
+- After plan/ranking refinement, `review-selection` accepted 15 selected papers as likely relevant
+  with 0 questionable and 0 likely off-topic papers; the remaining selection gap is direct
+  `paper reading agent` coverage.
+- `./demo-real-v4` downloaded 15/15 legal open PDFs, parsed 15/15 PDFs with local pypdf, generated
+  15 notes from parsed Markdown, and used 0 abstract fallback notes.
+- `./demo-real-v4` generated section-aware evidence artifacts with 84 snippets, 74 high-quality
+  snippets, 0% unknown-section ratio, about 1.2% noise-section ratio, and about 3.6% low-score
+  ratio.
+- `./demo-real-v4` audit passed and `inspect-workspace` labeled the workspace
+  `small_real_review`; it must not be upgraded to `source_diverse_real_review` because Semantic
+  Scholar had no effective contribution and the selected set remains arXiv/OpenAlex dominated.
 
 ## Validation
 
