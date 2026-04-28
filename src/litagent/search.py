@@ -57,6 +57,18 @@ def write_search_outputs(
     write_jsonl(workspace / "data" / "raw_results.jsonl", rows)
 
 
+def provider_error_message(source: str, exc: Exception) -> str:
+    message = str(exc)
+    if source == "semantic_scholar" and "429" in message:
+        return (
+            f"{message}; Semantic Scholar rate-limited the request. Configure "
+            "SEMANTIC_SCHOLAR_API_KEY, or use SEMANTIC_SCHOLAR_API_BASE_URL with "
+            "SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer when a compatible proxy "
+            "is intentionally configured."
+        )
+    return message
+
+
 def execute_search(
     workspace: Path,
     *,
@@ -128,7 +140,7 @@ def execute_search(
                     {
                         "source": source,
                         "query": query,
-                        "error": str(exc),
+                        "error": provider_error_message(source, exc),
                         "recoverable": True,
                     },
                 )

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -9,10 +8,12 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from litagent.schema import normalize_arxiv_id, normalize_doi, normalize_whitespace
+from litagent.secrets import get_config_value
 
 FetchBytes = Callable[[str, dict[str, str] | None], bytes]
 
 USER_AGENT = "litagent/0.1 (mailto:litagent@example.invalid)"
+SEMANTIC_SCHOLAR_DEFAULT_BASE_URL = "https://api.semanticscholar.org"
 
 
 class SearchProvider(Protocol):
@@ -162,6 +163,21 @@ class SemanticScholarProvider:
     def __init__(self, fetch: FetchBytes = default_fetch_bytes) -> None:
         self.fetch = fetch
 
+    def base_url(self) -> str:
+        return (
+            get_config_value("SEMANTIC_SCHOLAR_API_BASE_URL")
+            or SEMANTIC_SCHOLAR_DEFAULT_BASE_URL
+        ).rstrip("/")
+
+    def headers(self) -> dict[str, str]:
+        api_key = get_config_value("SEMANTIC_SCHOLAR_API_KEY")
+        if not api_key:
+            return {}
+        auth_mode = (get_config_value("SEMANTIC_SCHOLAR_API_AUTH_MODE") or "x-api-key").lower()
+        if auth_mode in {"bearer", "authorization", "authorization_bearer"}:
+            return {"Authorization": f"Bearer {api_key}"}
+        return {"x-api-key": api_key}
+
     def search(self, query: str, max_results: int) -> list[dict[str, Any]]:
         fields = ",".join(
             [
@@ -178,13 +194,9 @@ class SemanticScholarProvider:
             ]
         )
         params = urllib.parse.urlencode({"query": query, "limit": max_results, "fields": fields})
-        headers = {}
-        api_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
-        if api_key:
-            headers["x-api-key"] = api_key
         data = get_json(
-            f"https://api.semanticscholar.org/graph/v1/paper/search?{params}",
-            headers=headers,
+            f"{self.base_url()}/graph/v1/paper/search?{params}",
+            headers=self.headers(),
             fetch=self.fetch,
         )
         return [map_semantic_scholar_item(item) for item in data.get("data", [])]

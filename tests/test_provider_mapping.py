@@ -1,6 +1,8 @@
 import xml.etree.ElementTree as ET
 
 from litagent.providers import (
+    SEMANTIC_SCHOLAR_DEFAULT_BASE_URL,
+    SemanticScholarProvider,
     map_arxiv_entry,
     map_openalex_item,
     map_semantic_scholar_item,
@@ -78,3 +80,39 @@ def test_arxiv_mapping_extracts_pdf_link() -> None:
     assert mapped["year"] == 2024
     assert mapped["arxiv_id"] == "2401.00001"
     assert mapped["pdf_url"] == "https://arxiv.org/pdf/2401.00001v2"
+
+
+def test_semantic_scholar_provider_uses_official_key_header(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fetch(url: str, headers: dict[str, str] | None) -> bytes:
+        seen["url"] = url
+        seen["headers"] = headers
+        return b'{"data": []}'
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "official-key")
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_BASE_URL", SEMANTIC_SCHOLAR_DEFAULT_BASE_URL)
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_AUTH_MODE", "x-api-key")
+
+    SemanticScholarProvider(fetch=fetch).search("semantic", 1)
+
+    assert str(seen["url"]).startswith(SEMANTIC_SCHOLAR_DEFAULT_BASE_URL)
+    assert seen["headers"] == {"x-api-key": "official-key"}
+
+
+def test_semantic_scholar_provider_supports_bearer_proxy(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fetch(url: str, headers: dict[str, str] | None) -> bytes:
+        seen["url"] = url
+        seen["headers"] = headers
+        return b'{"data": []}'
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "proxy-key")
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_BASE_URL", "https://s2api.example.test/s2")
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_AUTH_MODE", "authorization_bearer")
+
+    SemanticScholarProvider(fetch=fetch).search("semantic", 1)
+
+    assert str(seen["url"]).startswith("https://s2api.example.test/s2/graph/v1/paper/search")
+    assert seen["headers"] == {"Authorization": "Bearer proxy-key"}

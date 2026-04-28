@@ -153,6 +153,14 @@
   `./demo-real-v4`, `max_papers=15`, search run isolation, `review-selection` before download,
   local pypdf first, section-aware evidence scoring, Chinese draft report generation, and Codex /
   Agent secondary synthesis.
+- Added Semantic Scholar key configuration support for both the official `x-api-key` path and an
+  explicitly configured compatible proxy path using `SEMANTIC_SCHOLAR_API_BASE_URL` plus
+  `SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer`.
+- Configured local ignored `.env` with Semantic Scholar credentials for future v4 preparation;
+  the real key is not tracked and must not be written to docs or source code.
+- Documented v4 failure strategy: if Semantic Scholar still has no effective contribution, or if
+  source diversity improves at the cost of relevance or evidence quality, the run must not be
+  upgraded to `source_diverse_real_review`.
 
 ## Validation
 
@@ -236,6 +244,10 @@
   acceptance criteria.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after the baseline-freeze
   documentation update.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 45 tests after
+  Semantic Scholar key/proxy configuration support and v4 preflight documentation.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after Semantic Scholar
+  configuration support.
 
 ## Known Issues
 

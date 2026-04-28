@@ -76,6 +76,30 @@ Semantic Scholar, and OpenAlex providers. DOI PDF resolution uses Unpaywall and 
 `UNPAYWALL_EMAIL` or `LITAGENT_CONTACT_EMAIL`; failed downloads are logged and do not stop
 the rest of the pipeline.
 
+## Semantic Scholar API 配置
+
+`litagent` 使用 `SEMANTIC_SCHOLAR_API_KEY` 读取 Semantic Scholar API key。配置后，
+Semantic Scholar provider 会在真实检索中使用该 key。不要把真实 key 写入代码、文档或
+提交记录；可以使用 shell 环境变量或本地 `.env` 文件，`.env` 已被 `.gitignore` 忽略。
+
+官方 Semantic Scholar API 默认使用：
+
+```bash
+export SEMANTIC_SCHOLAR_API_KEY="..."
+```
+
+如使用明确配置的兼容代理，可以额外设置：
+
+```bash
+export SEMANTIC_SCHOLAR_API_BASE_URL="https://your-compatible-proxy.example/s2"
+export SEMANTIC_SCHOLAR_API_AUTH_MODE="authorization_bearer"
+```
+
+默认鉴权模式是 `x-api-key`。当 `SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer`
+时，provider 会发送 `Authorization: Bearer <SEMANTIC_SCHOLAR_API_KEY>`。如果没有
+有效 key，Semantic Scholar 可能返回 HTTP 429；该错误会被记录到 `logs/search_errors.jsonl`，
+不会中断整个 pipeline。
+
 ## Search Runs, Ranking, and Selection Review
 
 Search is isolated by run. Each run writes:
@@ -210,6 +234,24 @@ evidence quality scoring 和中文研究级报告草稿质量。
 配置 SEMANTIC_SCHOLAR_API_KEY 后，再使用 fresh workspace ./demo-real-v4
 做 max_papers=15 的 source-diverse validation。
 ```
+
+`demo-real-v4` 前置检查：
+
+- 确认 `SEMANTIC_SCHOLAR_API_KEY` 已配置；如使用兼容代理，还需确认
+  `SEMANTIC_SCHOLAR_API_BASE_URL` 和 `SEMANTIC_SCHOLAR_API_AUTH_MODE`。
+- 使用 fresh workspace：`./demo-real-v4`。
+- `max_papers=15`，目标是来源多样性验证，不是扩大规模。
+- 使用真实检索和 search run isolation，不使用 mock。
+- 下载前运行 `review-selection`。
+- 解析优先使用本地 `pypdf`。
+- MinerU 只用于复杂版面、OCR 或表格密集 PDF。
+- 运行带章节和质量评分的 `build-evidence`。
+- `report` 默认中文，且必须是 evidence-backed report。
+- Codex / Agent 必须复核 evidence quality、paper_id 支撑和泛化表述。
+
+如果 Semantic Scholar 仍然 429 或有效候选很少，`demo-real-v4` 不应强行标记为
+`source_diverse_real_review`。如果 selected papers 仍被 arXiv/OpenAlex 主导，或来源多样性
+改善但相关性和证据质量明显下降，则最多仍应视为 `small_real_review`，并在总结中说明原因。
 
 ## VS Code Reopen in Container
 

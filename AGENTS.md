@@ -102,6 +102,8 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 不要只因为 evidence table 存在就接受报告；必须检查证据质量。
 - 不要把 MinerU 作为默认解析路径。
 - 不要在没有 `SEMANTIC_SCHOLAR_API_KEY` 的情况下反复扩大真实检索。
+- 不要因为配置了 Semantic Scholar 或兼容代理就自动升级到
+  `source_diverse_real_review`；必须同时检查来源分布、论文相关性和证据质量。
 - 不要扩大到 30 或 50 篇论文。
 - 不要急着接很多外部 MCP。
 

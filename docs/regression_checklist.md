@@ -199,6 +199,9 @@
 
 如果无法达到 `source_diverse_real_review`，必须在最终总结中说明具体原因，例如
 Semantic Scholar 仍被限流、有效候选不足、selected papers 仍由单一来源主导或证据质量下降。
+如果 Semantic Scholar 无有效贡献，则 v4 最多仍是 `small_real_review`。如果来源多样性改善
+但 selected papers 相关性下降、`review-selection` 不干净或 evidence quality 明显弱于
+`demo-real-v3`，也不能升级标签。来源多样性不能以牺牲相关性和证据质量为代价。
 
 ## 每次改动后的最低验证
 

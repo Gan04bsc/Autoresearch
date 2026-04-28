@@ -236,7 +236,8 @@
 
 建议运行条件：
 
-- 配置 `SEMANTIC_SCHOLAR_API_KEY`。
+- 配置 `SEMANTIC_SCHOLAR_API_KEY`；如使用兼容代理，还需配置
+  `SEMANTIC_SCHOLAR_API_BASE_URL` 和 `SEMANTIC_SCHOLAR_API_AUTH_MODE=authorization_bearer`。
 - 使用 fresh workspace：`./demo-real-v4`。
 - `max_papers=15`。
 - 使用真实检索，不使用 mock。
@@ -261,6 +262,16 @@
 - `final_report.md` 是中文 evidence-backed report，并包含 paper_id 支撑。
 - `inspect-workspace` 至少保持 `small_real_review`；如果来源多样性足够，则可升级为
   `source_diverse_real_review`。
+
+失败策略：
+
+- 如果 Semantic Scholar 仍然返回 429 或有效候选很少，`demo-real-v4` 最多仍应标记为
+  `small_real_review`，并说明 Semantic Scholar 未能有效贡献来源多样性。
+- 如果 selected papers 仍几乎全来自 arXiv/OpenAlex，不能升级到
+  `source_diverse_real_review`。
+- 如果来源多样性改善但论文相关性、`review-selection` 结果或 evidence quality 明显下降，
+  也不能升级质量标签。
+- 来源多样性不能以牺牲主题相关性、合法开放获取下载、解析质量或证据质量为代价。
 
 ## 暂时不要做
 

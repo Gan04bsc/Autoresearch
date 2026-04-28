@@ -4,7 +4,7 @@ from uuid import uuid4
 from litagent.dedup import dedup_and_rank, score_paper
 from litagent.io import read_jsonl, write_jsonl
 from litagent.planner import write_research_plan
-from litagent.search import execute_search
+from litagent.search import execute_search, provider_error_message
 
 
 def workspace_path(name: str) -> Path:
@@ -82,3 +82,10 @@ def test_topic_sensitive_ranking_explains_positive_and_negative_matches() -> Non
     assert relevant_score["score_explanation"]["matched_terms"]["high_value_title"]
     assert off_topic_score["score_explanation"]["matched_terms"]["negative_title"]
     assert off_topic_score["exclusion_score"] > 0
+
+
+def test_semantic_scholar_429_error_mentions_key_configuration() -> None:
+    message = provider_error_message("semantic_scholar", RuntimeError("HTTP Error 429"))
+
+    assert "SEMANTIC_SCHOLAR_API_KEY" in message
+    assert "SEMANTIC_SCHOLAR_API_BASE_URL" in message
