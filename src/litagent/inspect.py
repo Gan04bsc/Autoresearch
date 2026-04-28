@@ -12,6 +12,7 @@ from litagent.audit import (
     report_reference_metrics,
 )
 from litagent.io import read_jsonl
+from litagent.paper_roles import enrich_paper_role, intent_counts, role_counts
 from litagent.status import workspace_status
 
 
@@ -50,6 +51,70 @@ def report_has_synthesis_structure(report_text: str) -> bool:
         sum(heading in report_text for heading in expected),
         sum(heading in report_text for heading in legacy),
     ) >= 4
+
+
+WORKSPACE_ARTIFACTS = {
+    "field_map": "knowledge/field_map.md",
+    "technical_frontier": "knowledge/technical_frontier.md",
+    "method_matrix": "knowledge/method_matrix.md",
+    "benchmark_matrix": "knowledge/benchmark_matrix.md",
+    "innovation_opportunities": "knowledge/innovation_opportunities.md",
+    "reading_plan": "knowledge/reading_plan.md",
+}
+
+
+def research_workspace_quality_metrics(
+    workspace: Path, selected: list[dict[str, Any]]
+) -> dict[str, Any]:
+    enriched = [enrich_paper_role(paper) for paper in selected]
+    counts_by_role = role_counts(enriched)
+    counts_by_intent = intent_counts(enriched)
+    artifact_status = {
+        name: (workspace / relative_path).exists()
+        for name, relative_path in WORKSPACE_ARTIFACTS.items()
+    }
+    warnings: list[str] = []
+    technical_count = counts_by_role.get("technical_method", 0) + counts_by_role.get(
+        "system_paper", 0
+    )
+    survey_count = counts_by_role.get("survey_or_review", 0)
+    background_count = (
+        counts_by_role.get("background_foundation", 0)
+        + counts_by_role.get("position_or_perspective", 0)
+        + counts_by_role.get("application_case", 0)
+    )
+    selected_count = len(enriched)
+
+    missing = [name for name, exists in artifact_status.items() if not exists]
+    if missing:
+        warnings.append(
+            "Research workspace artifacts are incomplete: " + ", ".join(sorted(missing)) + "."
+        )
+    if selected_count and technical_count < max(1, selected_count // 3):
+        warnings.append(
+            "Technical/system papers may be insufficient for frontier tracking: "
+            f"{technical_count}/{selected_count}."
+        )
+    if selected_count and survey_count / selected_count > 0.6:
+        warnings.append(
+            "Survey/review papers dominate the selected set; the workspace may drift toward "
+            "review writing instead of technical tracking."
+        )
+    if selected_count and background_count / selected_count > 0.4:
+        warnings.append(
+            "Background/position/application papers have high weight; avoid letting them drive "
+            "technical roadmap decisions."
+        )
+
+    return {
+        "paper_role_counts": counts_by_role,
+        "reading_intent_counts": counts_by_intent,
+        "technical_or_system_count": technical_count,
+        "survey_or_review_count": survey_count,
+        "background_position_application_count": background_count,
+        "workspace_artifacts": artifact_status,
+        "warnings": warnings,
+    }
 
 
 def choose_quality_level(
@@ -94,6 +159,7 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
     raw_results = read_jsonl(workspace / "data" / "raw_results.jsonl")
     papers = read_jsonl(workspace / "data" / "papers.jsonl")
     selected = read_jsonl(workspace / "data" / "selected_papers.jsonl")
+    enriched_selected = [enrich_paper_role(paper) for paper in selected]
     audit_report = workspace / "logs" / "audit_report.md"
     audit_text = audit_report.read_text(encoding="utf-8") if audit_report.exists() else ""
     report_path = workspace / "reports" / "final_report.md"
@@ -139,7 +205,7 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
             selected_concerns.append(
                 f"{len(low_relevance)} selected papers have low deterministic relevance scores."
             )
-        unknown_types = [row for row in selected if row.get("paper_type") == "unknown"]
+        unknown_types = [row for row in enriched_selected if row.get("paper_type") == "unknown"]
         if unknown_types:
             selected_concerns.append(f"{len(unknown_types)} selected papers are unclassified.")
         missing_abstracts = [row for row in selected if not row.get("abstract")]
@@ -155,8 +221,9 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
                 f"{len(missing_ids)} selected papers lack DOI, arXiv ID, or Semantic Scholar ID."
             )
 
-    parse_quality = parse_quality_metrics(workspace, selected)
-    note_quality = note_quality_metrics(workspace, selected)
+    parse_quality = parse_quality_metrics(workspace, enriched_selected)
+    note_quality = note_quality_metrics(workspace, enriched_selected)
+    research_workspace_quality = research_workspace_quality_metrics(workspace, enriched_selected)
     downloaded_pdf_count = parse_quality["downloaded_pdf_count"]
     parsed_markdown_count = parse_quality["parsed_markdown_count"]
     if downloaded_pdf_count and parsed_markdown_count == 0:
@@ -196,7 +263,10 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
                 "Final report appears shallow or metadata-heavy; inspect synthesis before real use."
             )
     else:
-        quality_concerns.append("No final report exists yet.")
+        quality_warnings.append(
+            "No final_report.md exists yet. This is acceptable for a research workspace only if "
+            "field_map, technical_frontier, matrices, and evidence artifacts are present."
+        )
 
     evidence_json = workspace / "knowledge" / "evidence_table.json"
     evidence_md = workspace / "knowledge" / "evidence_table.md"
@@ -274,15 +344,18 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
             "concerns": search_concerns,
         },
         "selected_paper_relevance": {
-            "selected_count": len(selected),
+            "selected_count": len(enriched_selected),
             "average_relevance_score": round(
-                sum(float(row.get("relevance_score") or 0.0) for row in selected)
-                / max(1, len(selected)),
+                sum(float(row.get("relevance_score") or 0.0) for row in enriched_selected)
+                / max(1, len(enriched_selected)),
                 4,
             ),
-            "type_counts": dict(Counter(str(row.get("paper_type")) for row in selected)),
+            "type_counts": dict(Counter(str(row.get("paper_type")) for row in enriched_selected)),
+            "paper_role_counts": research_workspace_quality["paper_role_counts"],
+            "reading_intent_counts": research_workspace_quality["reading_intent_counts"],
             "concerns": selected_concerns,
         },
+        "research_workspace_quality": research_workspace_quality,
         "parse_report_audit_quality": {
             **parse_quality,
             **note_quality,
@@ -301,6 +374,7 @@ def inspect_workspace_markdown(workspace: Path) -> str:
     result = inspect_workspace(workspace)
     search = result["search_result_quality"]
     selected = result["selected_paper_relevance"]
+    workspace_quality = result["research_workspace_quality"]
     quality = result["parse_report_audit_quality"]
     lines = [
         "# Litagent Workspace Inspection",
@@ -320,6 +394,14 @@ def inspect_workspace_markdown(workspace: Path) -> str:
         f"- Selected papers: {selected['selected_count']}",
         f"- Average relevance score: {selected['average_relevance_score']}",
         f"- Type counts: {selected['type_counts']}",
+        f"- Paper role counts: {selected['paper_role_counts']}",
+        f"- Reading intent counts: {selected['reading_intent_counts']}",
+        "",
+        "## Research Workspace Quality",
+        "",
+        f"- Workspace artifacts: {workspace_quality['workspace_artifacts']}",
+        f"- Technical/system papers: {workspace_quality['technical_or_system_count']}",
+        f"- Survey/review papers: {workspace_quality['survey_or_review_count']}",
         "",
         "## Parse / Report / Audit Quality",
         "",
@@ -349,6 +431,7 @@ def inspect_workspace_markdown(workspace: Path) -> str:
     concerns = [
         *search["concerns"],
         *selected["concerns"],
+        *workspace_quality["warnings"],
         *quality["concerns"],
         *quality.get("warnings", []),
     ]

@@ -18,6 +18,7 @@ from litagent.report import generate_final_report
 from litagent.review_selection import review_selection
 from litagent.search import execute_search
 from litagent.status import workspace_status
+from litagent.wiki_export import export_wiki
 
 
 def text_schema(description: str) -> dict[str, Any]:
@@ -210,6 +211,26 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "required": ["workspace"],
             },
         },
+        {
+            "name": "litagent_export_wiki",
+            "description": (
+                "Export existing workspace artifacts to an AutoWiki-compatible Chinese "
+                "research literature workspace. This does not call network, download, or parse."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace": workspace,
+                    "out_dir": text_schema("Output vault directory."),
+                    "format": {
+                        "type": "string",
+                        "enum": ["autowiki"],
+                        "default": "autowiki",
+                    },
+                },
+                "required": ["workspace", "out_dir"],
+            },
+        },
     ]
 
 
@@ -292,6 +313,13 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
         return {"ok": True, **workspace_status(workspace)}
     if name == "litagent_inspect_workspace":
         return {"ok": True, **inspect_workspace(workspace)}
+    if name == "litagent_export_wiki":
+        result = export_wiki(
+            workspace,
+            Path(str(arguments["out_dir"])),
+            export_format=str(arguments.get("format") or "autowiki"),
+        )
+        return {"ok": True, **result}
 
     msg = f"Unknown litagent MCP tool: {name}"
     raise ValueError(msg)

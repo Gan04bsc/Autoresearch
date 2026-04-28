@@ -20,6 +20,7 @@ from litagent.report import generate_final_report
 from litagent.review_selection import review_selection, review_selection_markdown
 from litagent.search import execute_search
 from litagent.status import workspace_status, workspace_status_markdown
+from litagent.wiki_export import export_wiki
 from litagent.workspace import create_workspace
 
 
@@ -193,6 +194,16 @@ def provider_smoke_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def export_wiki_command(args: argparse.Namespace) -> int:
+    result = export_wiki(args.workspace, args.out, export_format=args.format)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(f"Exported {result['paper_count']} papers to AutoWiki-compatible vault")
+        print(args.out)
+    return 0
+
+
 def run_research(args: argparse.Namespace) -> int:
     result = run_pipeline(
         args.topic,
@@ -344,6 +355,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum results to request; capped at 3 for smoke tests.",
     )
     provider_smoke_parser.set_defaults(func=provider_smoke_command)
+
+    export_wiki_parser = subparsers.add_parser(
+        "export-wiki",
+        help="Export existing workspace artifacts to an AutoWiki-compatible Markdown vault.",
+    )
+    export_wiki_parser.add_argument("workspace", type=Path)
+    export_wiki_parser.add_argument(
+        "--format",
+        choices=["autowiki"],
+        default="autowiki",
+        help="Wiki export format.",
+    )
+    export_wiki_parser.add_argument("--out", type=Path, required=True)
+    export_wiki_parser.add_argument("--json", action="store_true")
+    export_wiki_parser.set_defaults(func=export_wiki_command)
 
     run_parser = subparsers.add_parser("run", help="Run the full research pipeline.")
     run_parser.add_argument("topic")

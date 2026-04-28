@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from litagent.io import read_jsonl, write_jsonl
+from litagent.paper_roles import enrich_paper_role
 from litagent.schema import normalize_paper
 
 DATASET_TERMS = ["dataset", "corpus", "data set", "open dataset", "benchmark dataset"]
@@ -156,7 +157,7 @@ def classify_papers(workspace: Path) -> list[dict[str, Any]]:
     by_id: dict[str, dict[str, Any]] = {}
     for paper in selected:
         paper_type, evidence = classify_paper(paper)
-        updated = normalize_paper({**paper, "paper_type": paper_type, "type_evidence": evidence})
+        updated = enrich_paper_role({**paper, "paper_type": paper_type, "type_evidence": evidence})
         classified.append(updated)
         by_id[updated["paper_id"]] = updated
 

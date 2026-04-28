@@ -17,6 +17,16 @@ PAPER_TYPES = {
     "unknown",
 }
 
+PAPER_ROLES = {
+    "survey_or_review",
+    "technical_method",
+    "system_paper",
+    "benchmark_or_dataset",
+    "position_or_perspective",
+    "application_case",
+    "background_foundation",
+}
+
 PAPER_SCHEMA_DEFAULTS: dict[str, Any] = {
     "paper_id": "",
     "title": "",
@@ -35,6 +45,9 @@ PAPER_SCHEMA_DEFAULTS: dict[str, Any] = {
     "local_pdf_path": None,
     "source": [],
     "paper_type": "unknown",
+    "paper_role": "background_foundation",
+    "reading_intent": [],
+    "role_evidence": "",
     "relevance_score": 0.0,
     "importance_score": 0.0,
     "recency_score": 0.0,
@@ -119,6 +132,14 @@ def normalize_paper(raw: dict[str, Any]) -> dict[str, Any]:
     paper["paper_type"] = (
         paper.get("paper_type") if paper.get("paper_type") in PAPER_TYPES else "unknown"
     )
+    paper["paper_role"] = (
+        paper.get("paper_role")
+        if paper.get("paper_role") in PAPER_ROLES
+        else "background_foundation"
+    )
+    paper["reading_intent"] = [
+        str(intent) for intent in ensure_list(paper.get("reading_intent")) if str(intent)
+    ]
     paper["citation_count"] = int(paper.get("citation_count") or 0)
     paper["reference_count"] = int(paper.get("reference_count") or 0)
     for score_field in ("relevance_score", "importance_score", "recency_score", "final_score"):
@@ -181,6 +202,9 @@ def merge_papers(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str
         "download_error",
         "paper_type",
         "type_evidence",
+        "paper_role",
+        "reading_intent",
+        "role_evidence",
     ):
         if incoming.get(field) and not merged.get(field):
             merged[field] = incoming[field]

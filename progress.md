@@ -214,6 +214,25 @@
   `source_diverse_real_review`. The remaining warning is that the Chinese draft report still has
   2 candidate generic lines requiring Codex / Agent review before treating it as final research
   synthesis.
+- Corrected the project direction from “automatic final literature-review writer” to a research
+  literature workspace for literature discovery, classification, management, field mapping,
+  technical-frontier tracking, evidence management, research-gap discovery, innovation clues, and
+  Chinese research materials.
+- Documented that `reports/final_report.md` is an optional display artifact, not the core endpoint.
+- Added dual paper classification signals: `paper_role` and `reading_intent`.
+- Added role-aware knowledge outputs from `build-knowledge`: `field_map.md`,
+  `technical_frontier.md`, `method_matrix.md`, `benchmark_matrix.md`,
+  `innovation_opportunities.md`, and `reading_plan.md`.
+- Added `litagent export-wiki WORKSPACE --format autowiki --out OUT_DIR` and MCP tool
+  `litagent_export_wiki` for an AutoWiki-compatible Markdown + JSON vault export. The exporter
+  uses existing workspace artifacts only and does not call network, download, or parse.
+- Added AutoWiki-compatible vault pages under `raw/<paper_id>/` and `kb/`, with Obsidian wikilinks,
+  paper role routing, source metadata, evidence JSON, field map, technical frontier, method matrix,
+  benchmark matrix, innovation opportunities, and reading plan.
+- Updated `audit` and `inspect-workspace` to emit research-workspace quality signals for missing
+  field maps, technical frontier pages, matrices, innovation opportunities, reading plans, role
+  distributions, technical/system paper coverage, survey dominance, and background/application
+  over-weight.
 
 ## Validation
 
@@ -308,6 +327,17 @@
   printing the real API key.
 - Ran: `litagent provider-smoke semantic-scholar --json` after switching to the official Semantic
   Scholar API configuration; it safely reported HTTP 200 without printing the real API key.
+- Passed: `litagent inspect-workspace ./demo-real-v4 --json` after adding research-workspace
+  quality signals; it still labels the workspace `source_diverse_real_review`.
+- Passed: `litagent build-knowledge ./demo-real-v4` as a non-network refresh of the new field map,
+  technical frontier, matrices, innovation opportunities, and reading plan artifacts.
+- Passed: `litagent export-wiki ./demo-real-v4 --format autowiki --out .tmp/wiki-vault-v4 --json`;
+  it exported 15 papers with role distribution `system_paper=8`, `survey_or_review=4`,
+  `technical_method=1`, `benchmark_or_dataset=1`, and `position_or_perspective=1`.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 56 tests after
+  research-workspace repositioning and AutoWiki-compatible export.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after research-workspace
+  repositioning and AutoWiki-compatible export.
 
 ## Known Issues
 
@@ -337,14 +367,14 @@
 
 ## Next Task
 
-Do not expand to larger real reviews yet. Next work should focus on either maintaining the frozen
-`./demo-real-v3` evidence-quality baseline or preparing a source-diversity validation run:
+Do not expand to larger real reviews yet. Next work should focus on research workspace quality:
 
-1. Keep `./demo-real-v3` as the regression baseline for reader/evidence/report/audit/inspect
-   changes.
-2. Configure `SEMANTIC_SCHOLAR_API_KEY` before any `./demo-real-v4` run.
-3. Use `./demo-real-v4` only to validate source diversity with `max_papers=15`, not to expand to
-   30 or 50 papers.
-4. Treat `source_diverse_real_review` as the target label; if it is not reached, document the
-   precise blocker.
+1. Use `./demo-real-v3` as the evidence-quality regression baseline.
+2. Use `./demo-real-v4` as the source-diversity regression baseline.
+3. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
+   real Obsidian/AutoWiki maintenance workflow.
+4. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
+   further optimizing `final_report.md`.
+5. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
+   download, parse, or evidence extraction.
 

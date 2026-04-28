@@ -2,12 +2,26 @@
 
 ## 项目愿景
 
-`litagent` 面向“多智能体文献综述自动化工具”这一方向，目标是构建一个可追溯、可检查、可迭代的文献研究工作台。
+`litagent` 面向“多智能体文献综述自动化工具”这一方向，目标是构建一个可追溯、可检查、可迭代的研究型文献工作台（research literature workspace）。
+
+项目不应被定位为自动综述写作器。它的主要目标是帮助研究者做文献调研和管理：
+
+1. 文献发现。
+2. 文献分类。
+3. 文献管理。
+4. 领域地图构建。
+5. 技术论文追踪。
+6. 证据管理。
+7. 研究空白发现。
+8. 创新线索生成。
+9. 中文调研材料生成。
+
+`reports/final_report.md` 只是可选中文草稿或展示产物，不是项目核心终点。
 
 项目采用清晰的职责分工：
 
 - Codex / Agent 负责调度、检查、判断、质疑和中文综合。
-- `litagent` 负责确定性工具执行，包括搜索、去重、下载、解析、初步分类、初步阅读、知识构建、证据表（evidence table）构建、报告草稿、审计和质量信号输出。
+- `litagent` 负责确定性工具执行，包括搜索、去重、下载、解析、初步分类、论文角色和阅读意图推断、初步阅读、知识构建、证据表（evidence table）构建、AutoWiki-compatible 导出、可选报告草稿、审计和质量信号输出。
 
 核心原则是：`litagent` 不承担最终研究判断，Codex / Agent 必须检查中间产物并完成二次判断和中文综合。
 
@@ -24,7 +38,63 @@
 - 证据表可用，输出 `knowledge/evidence_table.md` 和 `knowledge/evidence_table.json`。
 - 证据表开始记录章节、`snippet_score`、质量说明和噪声标记，供 Agent 检查证据质量。
 - `litagent report` 默认生成中文报告草稿，并优先使用高分证据片段。
+- `build-knowledge` 生成研究工作台知识页，包括领域地图、技术前沿、方法矩阵、
+  benchmark 矩阵、创新机会和阅读计划。
+- `export-wiki` 可以把已有 workspace 产物导出为 AutoWiki-compatible vault，
+  供 Obsidian 或 AutoWiki-skill 长期维护。
 - `audit` 和 `inspect-workspace` 可用，可输出质量信号和阶段标签。
+
+## 论文角色和阅读意图
+
+当前采用双层分类。
+
+`paper_role`：
+
+- `survey_or_review`
+- `technical_method`
+- `system_paper`
+- `benchmark_or_dataset`
+- `position_or_perspective`
+- `application_case`
+- `background_foundation`
+
+`reading_intent`：
+
+- `build_field_map`
+- `extract_method`
+- `track_frontier`
+- `compare_systems`
+- `identify_benchmarks`
+- `find_research_gap`
+- `implementation_reference`
+
+使用原则：
+
+- 综述论文主要用于 `knowledge/field_map.md`，帮助建立领域地图。
+- 技术论文和系统论文主要用于 `knowledge/technical_frontier.md` 和
+  `knowledge/method_matrix.md`，帮助追踪前沿技术、比较系统设计、发现创新点。
+- Benchmark / dataset 论文主要用于 `knowledge/benchmark_matrix.md`，帮助建立评估体系。
+- Position/background 论文只能作为背景，不应主导技术路线判断。
+- Application case 如果偏离“文献调研和管理工具”主题，应在 review-selection 和人工复核中降权。
+
+## 研究工作台知识产物
+
+`build-knowledge` 的核心输出现在包括：
+
+- `knowledge/field_map.md`：领域划分、核心术语、代表方向，主要由综述和背景论文支持。
+- `knowledge/technical_frontier.md`：最新系统、方法、架构、agent 设计和可复用模块。
+- `knowledge/method_matrix.md`：横向比较系统/方法。
+- `knowledge/benchmark_matrix.md`：汇总 benchmark/dataset 论文和评估资源。
+- `knowledge/innovation_opportunities.md`：从技术论文和 benchmark 论文提炼创新线索。
+- `knowledge/reading_plan.md`：推荐阅读顺序，区分“先读综述建地图”和“再读技术论文追踪前沿”。
+
+`final_report.md` 不再是默认终点。未来 `report` 可支持以下模式，当前先作为路线图记录：
+
+- `report --mode field-map`
+- `report --mode technical-brief`
+- `report --mode literature-review`
+- `report --mode research-roadmap`
+- `report --mode reading-guide`
 
 ## 当前基线
 
@@ -33,7 +103,8 @@
 - `./demo-agent-mock`：确定性 mock 流程基线，用于验证端到端流程。
 - `./demo-real-small`：早期小规模真实检索基线，验证真实下载、pypdf 解析和审计。
 - `./demo-real-v2`：8 篇真实相关论文基线，验证 evidence table 前后的报告改进方向。
-- `./demo-real-v3`：当前最佳基线，12 篇真实相关论文，完成下载、解析、阅读、证据表、报告、审计和 inspect。
+- `./demo-real-v3`：证据质量回归基线，12 篇真实相关论文，完成下载、解析、阅读、证据表、报告、审计和 inspect。
+- `./demo-real-v4`：来源多样性验证基线，官方 Semantic Scholar API 连通后完成 15 篇真实论文 run，达到 `source_diverse_real_review`，但仍不代表生产级研究工作台。
 
 ## demo-real-v3 证明了什么
 
@@ -104,16 +175,18 @@
 
 ## 当前阶段定义
 
-当前阶段是小规模真实综述原型（small_real_review prototype）。
+当前阶段正在从小规模真实综述原型（small_real_review prototype）转向研究型文献工作台原型。
+`./demo-real-v4` 已证明在官方 Semantic Scholar API 可用时可以达到来源多样真实验证，但
+项目核心仍是文献调研、管理、证据组织和技术前沿追踪，而不是自动综述写作。
 
 这个阶段的含义是：
 
 - 能用真实检索完成 8 到 15 篇相关论文的小规模综述流程。
 - 能下载和解析开放获取 PDF。
 - 能生成 parsed Markdown notes。
-- 能生成证据表和报告草稿。
+- 能生成证据表、研究工作台知识页和可选报告草稿。
 - 能通过 audit 和 inspect 给出质量信号。
-- 但仍需要 Codex / Agent 做最终判断和中文研究级综合。
+- 但仍需要 Codex / Agent 做最终判断、知识组织和中文研究级综合。
 
 ## 质量等级定义
 
@@ -139,7 +212,7 @@
 - 下载和解析成功率合理。
 - notes 主要来自 parsed Markdown。
 - 证据表存在。
-- final report 有论文级引用。
+- evidence table、工作台知识页或可选 final report 有论文级引用。
 - `review-selection` 没有严重 off-topic。
 - `audit` 通过。
 
@@ -147,12 +220,12 @@
 
 - 来源多样性可能不足。
 - 证据片段可能有噪声。
-- 报告深度可能仍接近草稿。
+- 工作台知识页可能仍需要人工整理；可选报告深度可能仍接近草稿。
 - 证据表不能只检查“是否存在”，还要检查 `section`、`snippet_score`、
   `snippet_score_explanation` 和 `quality_flags`。
 - 仍需要 Codex / Agent 人工判断和中文综合。
 
-### 来源多样真实综述（source_diverse_real_review）
+### 来源多样真实验证（source_diverse_real_review）
 
 这是下一阶段需要验证的质量等级。
 
@@ -162,7 +235,7 @@
 - selected papers 不被单一来源垄断。
 - `review-selection` 干净。
 - 证据表质量较高。
-- final report 有明确的论文级支撑（paper-specific support）。
+- 证据表、工作台知识页和可选 final report 有明确的论文级支撑（paper-specific support）。
 - 来源失衡不再是主要风险。
 
 ### 生产级综述（production_quality_review）
@@ -182,10 +255,11 @@
 
 ## 下一阶段定义
 
-下一阶段目标是：证据质量增强 + 中文研究级综合 + 来源多样性验证。
+下一阶段目标是：研究工作台质量增强 + AutoWiki-compatible 知识组织 + 来源多样性稳定回归。
 
-当前正在推进第一段：证据质量增强。该阶段不扩大论文规模，不启动
-`./demo-real-v4`，不把 MinerU 改成默认解析路径。
+当前已经完成章节感知证据抽取和来源多样性验证的第一轮。下一步不要继续围绕
+`final_report.md` 优化，而应围绕文献管理、工作台知识页、AutoWiki/Obsidian 组织和
+创新线索管理改进。
 
 ### 优先级 1：章节感知证据抽取（section-aware evidence extraction）
 
@@ -204,35 +278,58 @@
 - 每条 evidence snippet 有 `snippet_score_explanation`。
 - `audit` 和 `inspect-workspace` 能提示 evidence quality 问题。
 
-### 优先级 3：中文研究级报告生成
+### 优先级 3：中文研究级工作台材料生成
 
 目标：
 
-- `litagent report` 可以生成中文报告草稿。
-- Codex / Agent 基于证据表做二次中文综合。
-- `final_report.md` 不再像英文模板。
-- 报告包含：
-  - 执行摘要。
-  - 方法分类。
-  - 系统对比。
-  - 证据支撑的主题综合。
+- `field_map`、`technical_frontier`、`method_matrix`、`benchmark_matrix`、
+  `innovation_opportunities` 和 `reading_plan` 默认中文。
+- Codex / Agent 基于证据表和工作台知识页做二次中文综合。
+- `final_report.md` 只是可选展示草稿。
+- 工作台材料包含：
+  - 领域地图。
+  - 技术前沿。
+  - 系统/方法矩阵。
+  - benchmark / dataset 矩阵。
   - 研究空白。
-  - 对 `litagent` 的设计启发。
-  - 下一步路线图。
+  - 创新线索。
+  - 推荐阅读路径。
 
-### 优先级 4：配置 Semantic Scholar API key 后的来源多样性验证
+### 优先级 4：AutoWiki-compatible 知识库组织
 
 目标：
 
-- 新 workspace：`./demo-real-v4`。
-- `max_papers=15`。
-- 配置 `SEMANTIC_SCHOLAR_API_KEY`。
-- 验证是否可以达到 `source_diverse_real_review`。
+- 使用 `litagent export-wiki WORKSPACE --format autowiki --out OUT_DIR` 导出现有 workspace。
+- 不让 AutoWiki-skill 接管 search/download/parse。
+- 让 AutoWiki 或 Obsidian 负责长期知识库组织、链接和复用。
+- 保留 `litagent` 作为检索、筛选、解析和证据抽取层。
 
-## demo-real-v4 规划和验收标准
+## demo-real-v4 来源多样性基线
 
-`./demo-real-v4` 暂时只用于验证来源多样性（source diversity），不是为了扩大规模。
-在未配置 `SEMANTIC_SCHOLAR_API_KEY` 前，不应启动该 run。
+`./demo-real-v4` 用于验证来源多样性（source diversity），不是为了扩大规模。
+第一次代理路径失败后，项目切换到官方 Semantic Scholar API，并使用
+`demo-real-v4-official-ss` 完成有效验证。
+
+当前记录：
+
+- Search run ID: `demo-real-v4-official-ss`
+- Raw results: 801
+- Raw source distribution: Semantic Scholar 421, OpenAlex 361, arXiv 19
+- Selected papers: 15
+- Selected source distribution after merge: Semantic Scholar 12, arXiv 10, OpenAlex 5
+- Download: 15/15
+- pypdf parse: 15/15
+- Abstract fallback: 0
+- Evidence snippets: 93
+- High-quality snippets: 80
+- Unknown section ratio: 0%
+- Noise section ratio: about 1.1%
+- Low-score ratio: about 3.2%
+- Audit: PASS
+- Inspect label: `source_diverse_real_review`
+
+该基线证明 Semantic Scholar 在官方 API key 可用时可以实际贡献候选和 selected set。
+它仍没有证明生产级研究工作台，也没有证明复杂 PDF/OCR/table-heavy 论文可稳定处理。
 
 建议运行条件：
 
@@ -249,8 +346,8 @@
 - 解析优先使用本地 `pypdf`。
 - MinerU 只用于复杂版面、OCR 或表格密集 PDF。
 - 使用带章节和质量评分的 `build-evidence`。
-- `report` 默认生成中文草稿。
-- Codex / Agent 对证据表和报告做二次综合。
+- `report` 只是可选中文草稿。
+- Codex / Agent 对证据表、工作台知识页和可选报告做二次综合。
 - `inspect-workspace` 目标标签为 `source_diverse_real_review`；如果达不到，必须说明原因。
 
 `demo-real-v4` 只有在满足以下条件时，才可以被认为比 `demo-real-v3` 前进：
@@ -262,15 +359,15 @@
 - abstract fallback 很低或为 0。
 - evidence table 质量不低于 `demo-real-v3` 太多，尤其是 unknown section、
   noise section 和 low-score ratio 不能异常升高。
-- `final_report.md` 是中文 evidence-backed report，并包含 paper_id 支撑。
+- evidence table、工作台知识页和可选 `final_report.md` 是中文 evidence-backed material，
+  并包含 paper_id 支撑。
 - `inspect-workspace` 至少保持 `small_real_review`；如果来源多样性足够，则可升级为
   `source_diverse_real_review`。
 
 失败策略：
 
-- `demo-real-v4` 的第一次验证结果已经显示 Semantic Scholar 通过已配置 key/proxy 路径
-  返回 HTTP 403 Forbidden，实际贡献候选为 0，因此该 run 只能保持
-  `small_real_review`。
+- 历史上 `demo-real-v4-initial` 通过已配置 key/proxy 路径返回 HTTP 403 Forbidden，
+  实际贡献候选为 0，因此该 run 只能保持 `small_real_review`。
 - 如果 Semantic Scholar provider smoke test 仍然返回 401、403、429 或无法解析 JSON，
   不应重新运行 `demo-real-v4`，应先修复 API key、auth mode、base URL、endpoint path
   或代理权限问题。

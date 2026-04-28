@@ -1,10 +1,25 @@
 # AGENTS.md
 
-你正在维护 `litagent`，一个由 Codex 调度的文献研究工作台。
+你正在维护 `litagent`，一个由 Codex 调度的研究型文献工作台
+（research literature workspace）。
 
 开始任何开发或研究工作前，先阅读 `prd.md`、`progress.md` 和
-`docs/project_status.md`。当前阶段是小规模真实综述原型
-（small_real_review prototype），不是生产级系统综述工具。
+`docs/project_status.md`。当前方向不是自动综述写作器，也不是生产级系统综述工具，
+而是面向研究者的文献调研、管理、证据组织和技术前沿追踪工具。
+
+核心目标包括：
+
+- 文献发现。
+- 文献分类。
+- 文献管理。
+- 领域地图构建。
+- 技术论文追踪。
+- 证据管理。
+- 研究空白发现。
+- 创新线索生成。
+- 中文调研材料生成。
+
+`reports/final_report.md` 只是可选中文草稿或展示产物，不是项目核心终点。
 
 ## 架构和职责边界
 
@@ -20,8 +35,12 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 判断 `selected_papers.jsonl` 是否与研究主题相关。
 - 判断证据表是否可用，是否记录 `section`、`snippet_score`、
   `snippet_score_explanation` 和 `quality_flags`，是否存在噪声片段、证据不足或主题支撑过弱。
-- 判断 `reports/final_report.md` 是否浅薄、模板化、缺少论文级支撑或不适合作为真实综述。
-- 基于 `library/notes`、`library/markdown`、`knowledge/evidence_table.*` 和元数据进行中文综合。
+- 判断工作台知识页是否可用，包括 `field_map`、`technical_frontier`、`method_matrix`、
+  `benchmark_matrix`、`innovation_opportunities` 和 `reading_plan`。
+- 判断 `reports/final_report.md` 是否只是可选草稿，是否浅薄、模板化、缺少论文级支撑或
+  不适合作为真实研究输出。
+- 基于 `library/notes`、`library/markdown`、`knowledge/evidence_table.*`、工作台知识页
+  和元数据进行中文综合。
 - 不接受 `audit PASS` 作为唯一成功标准。
 
 ### litagent 的职责
@@ -34,14 +53,17 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 下载合法开放获取 PDF。
 - 使用本地 `pypdf` 或必要时 MinerU 解析 PDF。
 - 初步分类论文类型。
+- 推断论文角色（paper_role）和阅读意图（reading_intent）。
 - 生成初步阅读笔记。
 - 构建知识文件。
 - 构建带章节和质量评分的证据表。
-- 生成报告草稿。
+- 生成研究工作台知识页。
+- 导出 AutoWiki-compatible vault。
+- 可选生成报告草稿。
 - 输出 `audit` 和 `inspect-workspace` 质量信号。
 
 `litagent` 不应被视为最终研究判断者。它的 `classify`、`read`、
-`build-knowledge`、`build-evidence` 和 `report` 输出都只是草稿
+`build-knowledge`、`build-evidence`、`export-wiki` 和 `report` 输出都只是草稿
 （draft）、结构化证据（structured evidence）或机器生成的中间产物
 （machine-generated intermediate artifacts），不是最终学术判断
 （final scholarly judgment）。
@@ -76,13 +98,49 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 11. 只下载合法开放获取 PDF，不绕过付费墙。
 12. 普通文本 PDF 优先使用本地 `pypdf`。MinerU 只用于 OCR、复杂版面或表格密集论文。
 13. 检查下载数、解析 Markdown 数、解析成功率和 abstract fallback 数。
-14. 运行 `classify -> read -> build-knowledge -> build-evidence -> report`。
+14. 运行 `classify -> read -> build-knowledge -> build-evidence`。
 15. 检查证据表是否按主题组织，是否有论文级支撑，是否有 `section`、
     `snippet_score`、质量说明和明显噪声标记。
-16. 检查报告是否中文、是否优先使用高质量证据、是否有论文级引用、是否避免泛泛而谈。
-17. 运行 `audit`。
-18. 运行 `inspect-workspace`。
-19. 如果 `audit PASS` 但报告浅薄、证据表弱、解析失败、来源失衡或候选论文偏题，必须继续修正。
+16. 检查 `knowledge/field_map.md`、`knowledge/technical_frontier.md`、
+    `knowledge/method_matrix.md`、`knowledge/benchmark_matrix.md`、
+    `knowledge/innovation_opportunities.md` 和 `knowledge/reading_plan.md`。
+17. 如需长期知识库管理，运行
+    `litagent export-wiki WORKSPACE --format autowiki --out OUT_DIR`。
+18. 如需展示型中文草稿，再运行 `report`。报告不是默认终点。
+19. 运行 `audit`。
+20. 运行 `inspect-workspace`。
+21. 如果 `audit PASS` 但工作台知识页缺失、证据表弱、解析失败、来源失衡、候选论文偏题
+    或报告浅薄，必须继续修正。
+
+## 论文角色和阅读意图
+
+`paper_role` 用来描述论文在知识库中的功能：
+
+- `survey_or_review`：用于构建领域地图。
+- `technical_method`：用于抽取方法和追踪前沿。
+- `system_paper`：用于比较系统、抽取架构和寻找实现参考。
+- `benchmark_or_dataset`：用于评估体系建设。
+- `position_or_perspective`：用于背景和研究空白，不主导技术路线。
+- `application_case`：只在与主题直接相关时作为实现参考；偏题时降权。
+- `background_foundation`：用于背景知识，不主导技术路线。
+
+`reading_intent` 用来描述为什么读这篇论文：
+
+- `build_field_map`
+- `extract_method`
+- `track_frontier`
+- `compare_systems`
+- `identify_benchmarks`
+- `find_research_gap`
+- `implementation_reference`
+
+阅读模板：
+
+- 综述论文：关注领域划分、核心术语、代表系统、经典论文、引用网络、未解决问题和背景价值。
+- 技术 / 系统论文：关注具体问题、方法架构、核心模块、agent 分工、输入输出、实验设计、
+  创新点、可借鉴设计和实现风险。
+- Benchmark / dataset 论文：关注评估能力、数据构造、指标、baseline、对 litagent 的适用性
+  和评估盲点。
 
 ## 质量等级
 
@@ -98,7 +156,9 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 ## 暂时不要做
 
 - 不要无规划地“跑一轮发现问题加一个功能”。
+- 不要把项目重新收窄成自动综述写作器。
 - 不要把 deterministic report 当作最终研究报告。
+- 不要把 `final_report.md` 当作唯一交付物或默认终点。
 - 不要只因为 evidence table 存在就接受报告；必须检查证据质量。
 - 不要把 MinerU 作为默认解析路径。
 - 不要在没有 `SEMANTIC_SCHOLAR_API_KEY` 的情况下反复扩大真实检索。
@@ -118,6 +178,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - Inspect: `litagent inspect-workspace WORKSPACE --json`
 - Selection review: `litagent review-selection WORKSPACE --json`
 - Evidence table: `litagent build-evidence WORKSPACE --json`
+- Export wiki: `litagent export-wiki WORKSPACE --format autowiki --out OUT_DIR`
 - Dedup latest search run: `litagent dedup WORKSPACE --search-scope latest --max-papers N`
 - Provider smoke test: `litagent provider-smoke semantic-scholar --json`
 
@@ -129,7 +190,8 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 输出文件符合 PRD schema。
 - 错误被记录，主流程不应无说明崩溃。
 - Agent 能通过 status、audit、inspect 和中间文件决定下一步。
-- 真实综述必须使用：
-  `read -> build-knowledge -> build-evidence -> report -> audit -> inspect-workspace`。
+- 真实文献工作台必须使用：
+  `read -> build-knowledge -> build-evidence -> audit -> inspect-workspace`。
+- 需要长期知识库时使用 `export-wiki`；需要展示草稿时再运行 `report`。
 - `progress.md` 必须更新。
 - 每次完成一次项目更新后提交版本。

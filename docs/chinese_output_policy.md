@@ -10,8 +10,8 @@
 
 - Agent 的最终回复。
 - Agent 的中间状态说明。
-- Codex / Agent 人工强化后的 `reports/final_report.md`。
-- 研究笔记和知识库文件的中文综合部分。
+- Codex / Agent 人工强化后的工作台知识页和可选 `reports/final_report.md`。
+- 研究笔记、证据表、Wiki 导出和知识库文件的中文综合部分。
 - 项目文档中的研究工作流说明。
 
 ## 术语规则
@@ -37,20 +37,22 @@
 - 如果某个术语没有稳定中文译法，第一次写成“中文解释（English original）”，后续保留英文也可以。
 - 如果用户明确要求英文，可以按用户要求输出英文。
 
-## 报告和笔记规则
+## 工作台材料、报告和笔记规则
 
-- 最终报告默认使用中文。
+- 研究工作台材料默认使用中文。
+- `reports/final_report.md` 是可选中文草稿，不是默认终点。
 - 研究笔记默认使用中文，必要英文术语保留原文。
-- 报告必须明确区分：
+- 笔记、证据表和报告必须明确区分：
   - 元数据或摘要来源的信息。
   - 解析全文 Markdown 来源的信息。
   - 仍不确定或缺失的信息。
-- 报告不得只复述英文摘要，也不得只是英文标题列表。
-- 报告应包含论文级引用和证据支撑。
+- 工作台材料不得只复述英文摘要，也不得只是英文标题列表。
+- `field_map`、`technical_frontier`、`method_matrix`、`benchmark_matrix`、
+  `innovation_opportunities`、`reading_plan` 和可选报告都应包含论文级引用和证据支撑。
 
 ## 当前实现状态
 
 当前确定性 `litagent report` 已默认生成中文报告草稿，并优先使用带 `snippet_score`
-的高质量证据片段。但它仍只能视为机器生成的报告草稿，不应作为最终中文研究报告。
+的高质量证据片段。但它仍只能视为机器生成的可选展示草稿，不应作为最终中文研究报告。
 Codex / Agent 必须继续基于 `library/notes`、`library/markdown` 和
-`knowledge/evidence_table.*` 进行二次判断、质疑和中文综合。
+`knowledge/evidence_table.*`、工作台知识页和 Wiki 导出进行二次判断、质疑和中文综合。

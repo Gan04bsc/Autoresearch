@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from litagent.io import read_json, read_jsonl
+from litagent.paper_roles import enrich_paper_role, role_counts
 from litagent.schema import missing_paper_fields, normalize_paper
 
 REQUIRED_REPORT_SECTIONS = [
@@ -36,6 +37,15 @@ GENERIC_UNSUPPORTED_PATTERNS = [
     "文献表明",
     "研究表明",
     "该领域",
+]
+
+WORKSPACE_ARTIFACTS = [
+    "knowledge/field_map.md",
+    "knowledge/technical_frontier.md",
+    "knowledge/method_matrix.md",
+    "knowledge/benchmark_matrix.md",
+    "knowledge/innovation_opportunities.md",
+    "knowledge/reading_plan.md",
 ]
 
 
@@ -222,7 +232,6 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
         "knowledge/base_knowledge.md",
         "knowledge/topic_map.md",
         "knowledge/index.md",
-        "reports/final_report.md",
         "logs/downloads.jsonl",
     ]
     for relative_path in required_files:
@@ -246,7 +255,8 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
             issues.append(f"research_plan.json missing field: {field}")
 
     selected = [
-        normalize_paper(paper) for paper in read_jsonl(workspace / "data" / "selected_papers.jsonl")
+        enrich_paper_role(normalize_paper(paper))
+        for paper in read_jsonl(workspace / "data" / "selected_papers.jsonl")
     ]
     if not selected:
         issues.append("No selected papers found.")
@@ -307,12 +317,40 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
 
     report_path = workspace / "reports" / "final_report.md"
     report_text = report_path.read_text(encoding="utf-8") if report_path.exists() else ""
-    for section in REQUIRED_REPORT_SECTIONS:
-        if f"## {section}" not in report_text:
-            issues.append(f"final_report.md missing section: {section}")
+    if report_path.exists():
+        for section in REQUIRED_REPORT_SECTIONS:
+            if f"## {section}" not in report_text:
+                issues.append(f"final_report.md missing section: {section}")
 
-    if selected and not re.search(r"\[p-[a-f0-9]{12}\]", report_text):
-        issues.append("final_report.md does not include traceable paper_id citations.")
+        if selected and not re.search(r"\[p-[a-f0-9]{12}\]", report_text):
+            issues.append("final_report.md does not include traceable paper_id citations.")
+    else:
+        warnings.append(
+            "final_report.md is missing. This is acceptable only when the workspace is being used "
+            "as a literature management workbench with field maps, matrices, "
+            "and evidence artifacts."
+        )
+
+    missing_workspace_artifacts = [
+        relative_path
+        for relative_path in WORKSPACE_ARTIFACTS
+        if not (workspace / relative_path).exists()
+    ]
+    if missing_workspace_artifacts:
+        warnings.append(
+            "Research workspace artifacts are incomplete: "
+            + ", ".join(missing_workspace_artifacts)
+        )
+
+    counts_by_role = role_counts(selected)
+    technical_count = counts_by_role.get("technical_method", 0) + counts_by_role.get(
+        "system_paper", 0
+    )
+    if selected and technical_count < max(1, len(selected) // 3):
+        warnings.append(
+            "Technical/system paper count may be insufficient for technical frontier tracking: "
+            f"{technical_count}/{len(selected)}."
+        )
 
     evidence_json = workspace / "knowledge" / "evidence_table.json"
     evidence_md = workspace / "knowledge" / "evidence_table.md"
@@ -351,7 +389,11 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
             )
 
     report_metrics = report_reference_metrics(report_text)
-    if selected and report_metrics["unique_paper_reference_count"] < min(len(selected), 5):
+    if (
+        report_path.exists()
+        and selected
+        and report_metrics["unique_paper_reference_count"] < min(len(selected), 5)
+    ):
         warnings.append(
             "Final report has too few unique paper-specific references: "
             f"{report_metrics['unique_paper_reference_count']}/{len(selected)}."
@@ -371,6 +413,11 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
         "note_quality": note_quality,
         "report_quality": report_metrics,
         "evidence_quality": evidence_quality,
+        "research_workspace_quality": {
+            "paper_role_counts": counts_by_role,
+            "technical_or_system_count": technical_count,
+            "missing_workspace_artifacts": missing_workspace_artifacts,
+        },
     }
     write_audit_report(workspace, result)
     return result
@@ -416,6 +463,14 @@ def write_audit_report(workspace: Path, result: dict[str, Any]) -> None:
         (
             "Low-score evidence ratio: "
             f"{result.get('evidence_quality', {}).get('low_score_ratio', 0.0):.0%}"
+        ),
+        (
+            "Paper role counts: "
+            f"{result.get('research_workspace_quality', {}).get('paper_role_counts', {})}"
+        ),
+        (
+            "Missing research workspace artifacts: "
+            f"{result.get('research_workspace_quality', {}).get('missing_workspace_artifacts', [])}"
         ),
         "",
         "## Issues",

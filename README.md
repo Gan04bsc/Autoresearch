@@ -1,17 +1,38 @@
 # Autoresearch
 
-Agentic Literature Research Workbench CLI.
+Agentic literature research workspace CLI.
+
+`litagent` 的主要目标不是自动生成最终综述，而是构建研究型文献工作台
+（research literature workspace）：帮助研究者发现、筛选、分类、管理和复用文献，
+快速建立领域知识体系、追踪前沿技术、管理证据、发现研究空白并生成中文调研材料。
+`reports/final_report.md` 只是可选展示产物，不是项目核心终点。
 
 ## 当前阶段
 
-当前项目阶段是小规模真实综述原型（small_real_review prototype）。
+当前项目阶段正在从小规模真实综述原型（small_real_review prototype）收敛到
+研究型文献工作台原型。`./demo-real-v4` 已证明在官方 Semantic Scholar API 可用时可以
+达到来源多样真实验证，但项目核心仍是文献调研和管理，不是自动综述写作。
 
-`litagent` 已经可以完成小规模真实文献综述流程，但它不是最终研究判断者。项目采用以下职责边界：
+`litagent` 的核心能力应服务于：
+
+1. 文献发现。
+2. 文献分类。
+3. 文献管理。
+4. 领域地图构建。
+5. 技术论文追踪。
+6. 证据管理。
+7. 研究空白发现。
+8. 创新线索生成。
+9. 中文调研材料生成。
+
+项目采用以下职责边界：
 
 - Codex / Agent 是调度、检查、判断、质疑和中文综合层。
 - `litagent` 是确定性工具层，负责搜索、去重、下载、解析、初步分类、初步阅读、知识构建、证据表（evidence table）构建、报告草稿、审计和质量信号输出。
-- `classify`、`read`、`build-knowledge`、`build-evidence` 和 `report` 输出都应视为草稿或结构化中间产物，不应直接视为最终学术判断。
-- `audit PASS` 不是唯一成功标准。Codex / Agent 仍必须检查候选论文、解析质量、证据表、报告深度和来源多样性（source diversity）。
+- `classify`、`read`、`build-knowledge`、`build-evidence`、`export-wiki` 和
+  `report` 输出都应视为草稿或结构化中间产物，不应直接视为最终学术判断。
+- `audit PASS` 不是唯一成功标准。Codex / Agent 仍必须检查候选论文、解析质量、
+  证据表、工作台知识页、报告深度和来源多样性（source diversity）。
 
 重要项目文档：
 
@@ -23,7 +44,9 @@ Agentic Literature Research Workbench CLI.
 
 从当前阶段开始，Agent 面向用户的输出默认使用中文。最终报告和研究笔记也应默认使用中文，论文标题、命令、文件名、MCP tool 名、API 名和代码标识符可以保留英文原文。重要英文术语第一次出现时使用“中文解释（English original）”格式。
 
-当前确定性 `litagent report` 默认生成中文报告草稿，并优先使用高 `snippet_score` 证据片段。它仍然只是机器生成的中间产物；真实研究输出需要 Codex / Agent 基于 `library/notes`、`library/markdown` 和 `knowledge/evidence_table.*` 进行二次中文综合。
+当前确定性 `litagent report` 默认生成中文报告草稿，并优先使用高 `snippet_score`
+证据片段。它仍然只是机器生成的可选展示产物；真实研究输出需要 Codex / Agent 基于
+`library/notes`、`library/markdown`、`knowledge/evidence_table.*` 和工作台知识页进行二次中文综合。
 
 ## 质量等级
 
@@ -63,6 +86,7 @@ litagent classify ./my-topic
 litagent read ./my-topic
 litagent build-knowledge ./my-topic
 litagent build-evidence ./my-topic --json
+litagent export-wiki ./my-topic --format autowiki --out ./wiki-vault
 litagent report ./my-topic
 litagent audit ./my-topic
 litagent status ./my-topic --json
@@ -143,7 +167,49 @@ litagent review-selection ./my-topic --json
 This reports likely relevant papers, questionable papers, likely off-topic papers, source/year
 distributions, missing subtopics, and the recommended next action.
 
-## Evidence-Grounded Notes and Reports
+## Paper Roles and Reading Intent
+
+`litagent` 区分论文“是什么”和“为什么读”。当前双层分类为：
+
+- `paper_role`: `survey_or_review`、`technical_method`、`system_paper`、
+  `benchmark_or_dataset`、`position_or_perspective`、`application_case`、
+  `background_foundation`。
+- `reading_intent`: `build_field_map`、`extract_method`、`track_frontier`、
+  `compare_systems`、`identify_benchmarks`、`find_research_gap`、
+  `implementation_reference`。
+
+使用规则：
+
+- 综述论文主要用于构建 `knowledge/field_map.md`。
+- 技术论文和系统论文主要用于 `knowledge/technical_frontier.md` 和
+  `knowledge/method_matrix.md`，服务于前沿追踪和创新点发现。
+- Benchmark / dataset 论文主要用于 `knowledge/benchmark_matrix.md` 和评估体系建设。
+- Position/background 论文只作为背景语境，不应主导技术路线判断。
+- 偏题 application case 应在 `review-selection` 和后续人工判断中降权。
+
+## Research Workspace Outputs
+
+`litagent build-knowledge WORKSPACE` 现在不仅生成基础知识文件，还生成研究工作台知识页：
+
+- `knowledge/field_map.md`
+- `knowledge/technical_frontier.md`
+- `knowledge/method_matrix.md`
+- `knowledge/benchmark_matrix.md`
+- `knowledge/innovation_opportunities.md`
+- `knowledge/reading_plan.md`
+
+这些文件比 `final_report.md` 更接近项目核心：它们帮助研究者管理阅读路径、技术前沿、
+横向方法比较、评估资源和创新线索。
+
+未来 `report` 应支持多种模式，当前先文档化方向：
+
+- `report --mode field-map`
+- `report --mode technical-brief`
+- `report --mode literature-review`
+- `report --mode research-roadmap`
+- `report --mode reading-guide`
+
+## Evidence-Grounded Notes and Workspace Materials
 
 After parsing PDFs, the preferred synthesis path is:
 
@@ -151,7 +217,7 @@ After parsing PDFs, the preferred synthesis path is:
 litagent read ./my-topic
 litagent build-knowledge ./my-topic
 litagent build-evidence ./my-topic --json
-litagent report ./my-topic
+litagent export-wiki ./my-topic --format autowiki --out ./wiki-vault
 litagent audit ./my-topic
 litagent inspect-workspace ./my-topic --json
 ```
@@ -171,11 +237,43 @@ and gaps. In the current evidence-quality phase, every evidence item should also
 `section`, `snippet_score`, `snippet_score_explanation`, and `quality_flags`. Codex / Agent must
 inspect these fields before accepting the report.
 
-`litagent report` now generates a Chinese draft report and prioritizes higher-score evidence
-snippets for paper-specific claims. Low-score snippets remain in the evidence table for review,
-but should not be treated as strong support. Audit and inspection warn when the evidence table is
-missing, notes remain abstract-level despite parsed Markdown, report references are too weak, or
-evidence quality is poor.
+`litagent report` 仍可生成中文草稿，但不是默认项目终点。低分证据片段保留在证据表中供
+复核，不应被当作强支撑。Audit 和 inspection 会提示证据表缺失、notes 仍停留在摘要层、
+工作台知识页缺失、报告引用过弱或证据质量不足。
+
+## AutoWiki-Compatible Export
+
+`litagent export-wiki WORKSPACE --format autowiki --out OUT_DIR` 将已有 workspace 产物导出为
+AutoWiki-compatible Markdown + JSON vault。该命令不调用网络、不重新下载 PDF、不重新解析 PDF，
+只读取已有的 `selected_papers.jsonl`、notes、`knowledge/evidence_table.*` 等产物。
+
+导出结构：
+
+```text
+wiki-vault/
+  export_manifest.json
+  raw/
+    <paper_id>/
+      source.md
+      metadata.json
+      evidence.json
+  kb/
+    index.md
+    field-map.md
+    reading-plan.md
+    technical-frontier.md
+    innovation-opportunities.md
+    topics/
+    systems/
+    benchmarks/
+    matrices/
+      method-matrix.md
+      benchmark-matrix.md
+```
+
+导出时会按 `paper_role` 路由论文：综述进入领域地图，技术/系统论文进入技术前沿和方法矩阵，
+benchmark/dataset 进入 benchmark 矩阵，背景和观点论文只作为语境。Wiki 页面使用 Obsidian
+wikilinks，例如 `[[survey-generation]]` 和 `[[citation-aware-synthesis]]`。
 
 ## MinerU PDF Parsing
 
@@ -202,19 +300,19 @@ ignored by `.gitignore`.
 
 ## Audit and Workspace Inspection
 
-`litagent audit WORKSPACE` checks required files, traceable report citations, parse quality, and
-evidence-grounding signals. The audit report includes selected paper count, downloaded PDF count,
-parsed Markdown count, parse success rate, notes generated from parsed Markdown versus abstract
-fallback, notes with parsed full-text evidence, and report reference counts.
+`litagent audit WORKSPACE` checks required files, parse quality, evidence-grounding signals, and
+research workspace artifacts. `final_report.md` is useful but optional for the workbench direction;
+missing field maps, technical frontier pages, matrices, or innovation opportunities are now quality
+warnings.
 
 `litagent inspect-workspace WORKSPACE --json` is agent-facing quality guidance. It labels a
 workspace as `smoke_test_run`, `small_real_review`, `source_diverse_real_review`, or
-`production_quality_review`; summarizes search and selection concerns; reports
-parse/report/audit concerns; and recommends the next action. Source imbalance is a warning, not by
-itself a reason to downgrade an otherwise successful small real review to smoke-test quality.
-Missing evidence tables, shallow notes, generic unsupported report claims, high unknown-section
-ratios, many low-score snippets, and noise-heavy evidence are treated as quality signals that
-Codex / Agent must inspect. `audit PASS` remains insufficient by itself.
+`production_quality_review`; summarizes search and selection concerns; reports research workspace
+quality, parse/evidence/audit concerns; and recommends the next action. Source imbalance is a
+warning, not by itself a reason to downgrade an otherwise successful small real run. Missing
+evidence tables, missing workspace knowledge pages, shallow notes, generic unsupported report
+claims, high unknown-section ratios, many low-score snippets, and noise-heavy evidence are treated
+as quality signals that Codex / Agent must inspect. `audit PASS` remains insufficient by itself.
 
 ## Codex-Orchestrated Mode
 

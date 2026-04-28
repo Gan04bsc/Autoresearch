@@ -1,5 +1,6 @@
 from litagent.classifier import classify_paper
 from litagent.dedup import deduplicate, score_paper
+from litagent.paper_roles import enrich_paper_role
 
 
 def test_deduplicate_merges_same_doi_and_sources() -> None:
@@ -124,3 +125,21 @@ def test_classifier_does_not_treat_surveygen_name_as_survey() -> None:
 
     assert paper_type == "system"
     assert "system" in evidence
+
+
+def test_paper_role_and_reading_intent_follow_paper_type() -> None:
+    survey = enrich_paper_role({"title": "A Survey of Research Agents", "paper_type": "survey"})
+    system = enrich_paper_role(
+        {"title": "AgentReview: A Multi-Agent Review Workbench", "paper_type": "system"}
+    )
+    benchmark = enrich_paper_role(
+        {"title": "ReviewBench: A Benchmark for Survey Generation", "paper_type": "benchmark"}
+    )
+
+    assert survey["paper_role"] == "survey_or_review"
+    assert "build_field_map" in survey["reading_intent"]
+    assert system["paper_role"] == "system_paper"
+    assert "track_frontier" in system["reading_intent"]
+    assert "implementation_reference" in system["reading_intent"]
+    assert benchmark["paper_role"] == "benchmark_or_dataset"
+    assert "identify_benchmarks" in benchmark["reading_intent"]

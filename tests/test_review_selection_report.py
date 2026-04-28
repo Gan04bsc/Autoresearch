@@ -204,3 +204,20 @@ def test_inspect_labels_successful_real_run_as_small_real_review() -> None:
     result = inspect_workspace(workspace)
 
     assert result["quality_level"] == "small_real_review"
+
+
+def test_inspect_reports_research_workspace_quality_signals() -> None:
+    workspace = workspace_path("inspect-workspace-quality")
+    write_review_workspace(workspace)
+    generate_final_report(workspace)
+    audit_workspace(workspace)
+
+    result = inspect_workspace(workspace)
+
+    workspace_quality = result["research_workspace_quality"]
+    assert workspace_quality["paper_role_counts"] == {"system_paper": 1}
+    assert workspace_quality["reading_intent_counts"]["track_frontier"] == 1
+    assert workspace_quality["workspace_artifacts"]["field_map"] is False
+    assert any(
+        "Research workspace artifacts" in warning for warning in workspace_quality["warnings"]
+    )
