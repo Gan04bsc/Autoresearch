@@ -140,6 +140,19 @@
 - Updated `audit` and `inspect-workspace` to report evidence-quality signals such as unknown
   sections, low-score evidence ratio, noise sections, and themes without enough paper-specific
   support.
+- Froze the `./demo-real-v3` evidence-quality regression baseline after commit `06207a4 Improve
+  evidence quality scoring`: 12 selected papers, 12/12 local pypdf parse, 0 abstract fallback,
+  93 evidence snippets, 85 high-quality snippets, 0% unknown-section ratio, about 1.1%
+  noise-section ratio, about 2.2% low-score ratio, audit PASS, and inspect label
+  `small_real_review`.
+- Documented that the remaining inspect warning is acceptable for the current baseline: the
+  Chinese draft report may still contain generic claims that require Codex / Agent review for
+  paper-specific support.
+- Added `demo-real-v4` planning guidance without executing it. The next run should validate source
+  diversity after `SEMANTIC_SCHOLAR_API_KEY` is configured, using fresh workspace
+  `./demo-real-v4`, `max_papers=15`, search run isolation, `review-selection` before download,
+  local pypdf first, section-aware evidence scoring, Chinese draft report generation, and Codex /
+  Agent secondary synthesis.
 
 ## Validation
 
@@ -218,6 +231,11 @@
 - Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 42 tests after
   evidence-quality updates.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after evidence-quality updates.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 42 tests after
+  freezing the `./demo-real-v3` evidence-quality baseline and documenting `./demo-real-v4`
+  acceptance criteria.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after the baseline-freeze
+  documentation update.
 
 ## Known Issues
 
@@ -247,11 +265,14 @@
 
 ## Next Task
 
-Do not expand to larger real reviews yet. Next work should focus only on stabilizing:
+Do not expand to larger real reviews yet. Next work should focus on either maintaining the frozen
+`./demo-real-v3` evidence-quality baseline or preparing a source-diversity validation run:
 
-1. Section-aware evidence extraction on `./demo-real-v3`.
-2. Evidence quality scoring thresholds and audit/inspect warnings.
-3. Chinese research-grade report drafting and Agent synthesis workflow.
-4. A later `./demo-real-v4` source-diversity validation only after `SEMANTIC_SCHOLAR_API_KEY` is
-   configured.
+1. Keep `./demo-real-v3` as the regression baseline for reader/evidence/report/audit/inspect
+   changes.
+2. Configure `SEMANTIC_SCHOLAR_API_KEY` before any `./demo-real-v4` run.
+3. Use `./demo-real-v4` only to validate source diversity with `max_papers=15`, not to expand to
+   30 or 50 papers.
+4. Treat `source_diverse_real_review` as the target label; if it is not reached, document the
+   precise blocker.
 

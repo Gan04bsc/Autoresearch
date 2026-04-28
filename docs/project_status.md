@@ -62,6 +62,46 @@
 - 没有证明 Semantic Scholar 可稳定使用，因为当前缺少 `SEMANTIC_SCHOLAR_API_KEY`。
 - 没有证明 evidence extraction 已经足够干净，因为仍会抓到 references、headers、captions、prompts、code、tables 和 layout artifacts 等噪声。
 
+## 当前冻结基线：demo-real-v3 after evidence quality scoring
+
+本节冻结 commit `06207a4 Improve evidence quality scoring` 之后的 `./demo-real-v3`
+证据质量基线。以后修改 `reader`、`evidence`、`report`、`audit` 或
+`inspect-workspace` 时，应优先对照该基线。
+
+基线记录：
+
+- Workspace: `./demo-real-v3`
+- Commit: `06207a4 Improve evidence quality scoring`
+- Selected papers: 12
+- Parse success: 12/12，使用本地 `pypdf`
+- Abstract fallback: 0
+- Evidence snippets: 93
+- High-quality evidence snippets: 85
+- Unknown section ratio: 0%
+- Noise section ratio: about 1.1%
+- Low-score ratio: about 2.2%
+- Audit result: PASS
+- Inspect label: `small_real_review`
+- Remaining warning: final report 仍可能有泛化表述，需要 Codex / Agent 复核
+  paper-specific support。
+
+该基线证明了：
+
+- 小规模真实综述流程可以在 12 篇真实论文上稳定完成。
+- 本地 `pypdf` 对当前普通文本 PDF 集合可稳定生成 parsed Markdown。
+- 证据表不再只是“存在”，而是包含 `section`、`snippet_score`、
+  `snippet_score_explanation` 和 `quality_flags`。
+- `audit` 和 `inspect-workspace` 能输出证据质量信号，而不只检查文件完整性。
+- `litagent report` 可以生成中文报告草稿，并使用高质量 evidence 和 paper_id 支撑。
+
+该基线没有证明：
+
+- 没有证明来源多样性（source diversity）达到 `source_diverse_real_review`。
+- 没有证明 Semantic Scholar 在配置 API key 后可以稳定贡献候选结果。
+- 没有证明复杂 PDF、OCR 或表格密集论文可以稳定解析。
+- 没有证明 deterministic report 已达到最终中文研究综述质量。
+- 没有消除人工复核需求；`audit PASS` 仍不等于最终研究质量达标。
+
 ## 当前阶段定义
 
 当前阶段是小规模真实综述原型（small_real_review prototype）。
@@ -188,6 +228,39 @@
 - `max_papers=15`。
 - 配置 `SEMANTIC_SCHOLAR_API_KEY`。
 - 验证是否可以达到 `source_diverse_real_review`。
+
+## demo-real-v4 规划和验收标准
+
+`./demo-real-v4` 暂时只用于验证来源多样性（source diversity），不是为了扩大规模。
+在未配置 `SEMANTIC_SCHOLAR_API_KEY` 前，不应启动该 run。
+
+建议运行条件：
+
+- 配置 `SEMANTIC_SCHOLAR_API_KEY`。
+- 使用 fresh workspace：`./demo-real-v4`。
+- `max_papers=15`。
+- 使用真实检索，不使用 mock。
+- 使用 search run isolation。
+- 下载前运行 `review-selection`。
+- 解析优先使用本地 `pypdf`。
+- MinerU 只用于复杂版面、OCR 或表格密集 PDF。
+- 使用带章节和质量评分的 `build-evidence`。
+- `report` 默认生成中文草稿。
+- Codex / Agent 对证据表和报告做二次综合。
+- `inspect-workspace` 目标标签为 `source_diverse_real_review`；如果达不到，必须说明原因。
+
+`demo-real-v4` 只有在满足以下条件时，才可以被认为比 `demo-real-v3` 前进：
+
+- Semantic Scholar 实际贡献有效候选结果。
+- selected papers 不再几乎全来自 arXiv/OpenAlex。
+- `review-selection` clean，没有严重 questionable 或 off-topic。
+- parse success 合理。
+- abstract fallback 很低或为 0。
+- evidence table 质量不低于 `demo-real-v3` 太多，尤其是 unknown section、
+  noise section 和 low-score ratio 不能异常升高。
+- `final_report.md` 是中文 evidence-backed report，并包含 paper_id 支撑。
+- `inspect-workspace` 至少保持 `small_real_review`；如果来源多样性足够，则可升级为
+  `source_diverse_real_review`。
 
 ## 暂时不要做
 

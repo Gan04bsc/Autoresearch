@@ -102,7 +102,30 @@
 - 低质量证据是否被保留为弱证据或复核线索，而不是被误当作强支撑。
 - 是否尽量避免 References、Appendix、prompts、code、tables、layout artifacts 等噪声。
 
-`demo-real-v3` 基线：
+## evidence quality regression baseline
+
+当修改 `reader`、`build-evidence`、`report`、`audit` 或 `inspect-workspace` 时，必须
+对照以下 evidence quality regression baseline。
+
+字段检查：
+
+- `knowledge/evidence_table.json` 中每条证据是否包含 `section`。
+- 是否包含 `snippet_score`。
+- 是否包含 `snippet_score_explanation`。
+- 是否包含 `quality_flags`。
+- `knowledge/evidence_table.md` 是否按 theme 分组并展示 section 和 score。
+
+质量指标检查：
+
+- unknown section ratio 是否异常升高。
+- noise section ratio 是否异常升高。
+- low-score ratio 是否异常升高。
+- final_report.md 是否仍为中文报告草稿。
+- report 是否仍有 paper_id 支撑。
+- `inspect-workspace` label 是否仍合理。
+- `audit PASS` 是否没有被误解为最终研究质量达标。
+
+冻结基线：`demo-real-v3` after evidence quality scoring：
 
 - evidence table 已生成。
 - 当前证据质量增强基线：`total_snippets=93`，`high_quality_snippets=85`，
@@ -110,6 +133,9 @@
 - 主题包括 multi-agent architecture、survey/literature review generation、systematic review workflow、paper reading agents、citation-aware synthesis、evaluation and benchmarks、limitations and open problems、design implications for litagent。
 - 已知弱点：仍可能出现 table、reference-adjacent 或上下文过短片段，但应被
   `section`、`snippet_score` 和 `quality_flags` 标记为弱证据或复核线索。
+
+如果指标相对该基线明显变差，应先检查章节识别、snippet 清洗、score threshold 和
+主题匹配逻辑，不应直接接受新的报告。
 
 ## report
 
@@ -151,6 +177,28 @@
 - abstract fallback: 0
 - evidence table exists: true
 - 由于 Semantic Scholar 不可用且 selected papers 被 arXiv 主导，不应升级为 `source_diverse_real_review`。
+
+## demo-real-v4 来源多样性验收
+
+`demo-real-v4` 的目标是验证来源多样性（source diversity），不是扩大规模。只有满足
+以下条件时，才可以认为它比 `demo-real-v3` 前进：
+
+- 已配置 `SEMANTIC_SCHOLAR_API_KEY`。
+- 使用 fresh workspace：`./demo-real-v4`。
+- `max_papers=15`。
+- Semantic Scholar 实际贡献有效候选结果。
+- selected papers 不再几乎全来自 arXiv/OpenAlex。
+- `review-selection` clean。
+- parse success 合理。
+- abstract fallback 很低或为 0。
+- evidence table 质量不低于 `demo-real-v3` 太多。
+- final_report.md 是中文 evidence-backed report。
+- report 有 paper_id 支撑。
+- `inspect-workspace` 至少保持 `small_real_review`；如果来源多样性足够，则可达到
+  `source_diverse_real_review`。
+
+如果无法达到 `source_diverse_real_review`，必须在最终总结中说明具体原因，例如
+Semantic Scholar 仍被限流、有效候选不足、selected papers 仍由单一来源主导或证据质量下降。
 
 ## 每次改动后的最低验证
 
