@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -8,17 +9,19 @@ from litagent.io import read_json, read_jsonl
 from litagent.schema import missing_paper_fields, normalize_paper
 
 REQUIRED_REPORT_SECTIONS = [
-    "Executive Summary",
-    "Field Background",
-    "Core Problems",
-    "Technical Route Categories",
-    "Representative Papers",
-    "Survey Paper Synthesis",
-    "Technical Paper Synthesis",
-    "Unresolved Problems",
-    "Future Research / Innovation Directions",
-    "Recommended Reading Order",
-    "References",
+    "执行摘要",
+    "研究背景",
+    "核心问题",
+    "方法分类",
+    "论文代表性列表",
+    "证据支撑的主题综合",
+    "综述类论文综合",
+    "技术论文综合",
+    "局限和研究空白",
+    "对 litagent 的设计启发",
+    "下一步路线图",
+    "推荐阅读顺序",
+    "参考文献",
 ]
 
 GENERIC_UNSUPPORTED_PATTERNS = [
@@ -28,6 +31,11 @@ GENERIC_UNSUPPORTED_PATTERNS = [
     "papers show",
     "systems show",
     "the field is",
+    "这些论文",
+    "所选论文",
+    "文献表明",
+    "研究表明",
+    "该领域",
 ]
 
 
@@ -128,6 +136,76 @@ def report_reference_metrics(report_text: str) -> dict[str, int]:
         "paper_reference_count": len(refs),
         "unique_paper_reference_count": len(set(refs)),
         "unsupported_generic_claim_count": len(unsupported_generic_claims(report_text)),
+    }
+
+
+def evidence_quality_metrics(workspace: Path) -> dict[str, Any]:
+    evidence_path = workspace / "knowledge" / "evidence_table.json"
+    evidence_md = workspace / "knowledge" / "evidence_table.md"
+    if not evidence_path.exists() or not evidence_md.exists():
+        return {
+            "exists": False,
+            "total_snippets": 0,
+            "high_quality_snippets": 0,
+            "low_score_snippets": 0,
+            "unknown_section_snippets": 0,
+            "noise_section_snippets": 0,
+            "low_score_ratio": 0.0,
+            "unknown_section_ratio": 0.0,
+            "noise_section_ratio": 0.0,
+            "themes_without_paper_specific_support": [],
+            "section_counts": {},
+        }
+
+    evidence = read_json(evidence_path, default={}) or {}
+    rows = evidence.get("themes") or []
+    if not isinstance(rows, list):
+        rows = []
+
+    section_counts: Counter[str] = Counter()
+    total = 0
+    high_quality = 0
+    low_score = 0
+    unknown_section = 0
+    noise_section = 0
+    themes_without_support: list[str] = []
+    noise_sections = {"References", "Bibliography", "Appendix", "Prompt", "Code", "Tables"}
+
+    for row in rows:
+        snippets = row.get("evidence_snippets_or_sections") or []
+        has_support = False
+        for item in snippets:
+            total += 1
+            section = str(item.get("section") or "Unknown")
+            section_counts[section] += 1
+            score = float(item.get("snippet_score") or 0.0)
+            flags = set(str(flag) for flag in item.get("quality_flags") or [])
+            if score >= 0.45 and item.get("paper_id"):
+                has_support = True
+            if score >= 0.65:
+                high_quality += 1
+            if score < 0.35:
+                low_score += 1
+            if section == "Unknown" or "unknown_section" in flags:
+                unknown_section += 1
+            if section in noise_sections or "noise_section" in flags:
+                noise_section += 1
+        if not has_support:
+            themes_without_support.append(str(row.get("theme") or "unknown"))
+
+    denominator = max(1, total)
+    return {
+        "exists": True,
+        "total_snippets": total,
+        "high_quality_snippets": high_quality,
+        "low_score_snippets": low_score,
+        "unknown_section_snippets": unknown_section,
+        "noise_section_snippets": noise_section,
+        "low_score_ratio": round(low_score / denominator, 4),
+        "unknown_section_ratio": round(unknown_section / denominator, 4),
+        "noise_section_ratio": round(noise_section / denominator, 4),
+        "themes_without_paper_specific_support": themes_without_support,
+        "section_counts": dict(sorted(section_counts.items())),
     }
 
 
@@ -238,10 +316,39 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
 
     evidence_json = workspace / "knowledge" / "evidence_table.json"
     evidence_md = workspace / "knowledge" / "evidence_table.md"
+    evidence_quality = evidence_quality_metrics(workspace)
     if not evidence_json.exists() or not evidence_md.exists():
         warnings.append(
             "Evidence table is missing; run `litagent build-evidence WORKSPACE --json`."
         )
+    elif evidence_quality["total_snippets"] == 0 and selected:
+        issues.append("Evidence table exists but contains no usable evidence snippets.")
+    else:
+        if evidence_quality["unknown_section_ratio"] > 0.4:
+            warnings.append(
+                "Evidence table has a high unknown-section ratio: "
+                f"{evidence_quality['unknown_section_ratio']:.0%}."
+            )
+        if evidence_quality["noise_section_ratio"] > 0.25:
+            warnings.append(
+                "Evidence table contains many snippets from low-priority/noise sections: "
+                f"{evidence_quality['noise_section_ratio']:.0%}."
+            )
+        if evidence_quality["low_score_ratio"] > 0.5:
+            warnings.append(
+                "Evidence table has a high low-score snippet ratio: "
+                f"{evidence_quality['low_score_ratio']:.0%}."
+            )
+        unsupported_themes = evidence_quality["themes_without_paper_specific_support"]
+        if len(unsupported_themes) > 2:
+            warnings.append(
+                "Several evidence themes lack enough paper-specific support: "
+                + ", ".join(unsupported_themes[:5])
+            )
+        if evidence_quality["high_quality_snippets"] and "score=" not in report_text:
+            warnings.append(
+                "Final report does not appear to expose evidence scores from the evidence table."
+            )
 
     report_metrics = report_reference_metrics(report_text)
     if selected and report_metrics["unique_paper_reference_count"] < min(len(selected), 5):
@@ -263,6 +370,7 @@ def audit_workspace(workspace: Path) -> dict[str, Any]:
         "parse_quality": parse_quality,
         "note_quality": note_quality,
         "report_quality": report_metrics,
+        "evidence_quality": evidence_quality,
     }
     write_audit_report(workspace, result)
     return result
@@ -292,6 +400,22 @@ def write_audit_report(workspace: Path, result: dict[str, Any]) -> None:
         (
             "Unique paper references in report: "
             f"{result.get('report_quality', {}).get('unique_paper_reference_count', 0)}"
+        ),
+        (
+            "Evidence snippets: "
+            f"{result.get('evidence_quality', {}).get('total_snippets', 0)}"
+        ),
+        (
+            "High-quality evidence snippets: "
+            f"{result.get('evidence_quality', {}).get('high_quality_snippets', 0)}"
+        ),
+        (
+            "Unknown-section evidence ratio: "
+            f"{result.get('evidence_quality', {}).get('unknown_section_ratio', 0.0):.0%}"
+        ),
+        (
+            "Low-score evidence ratio: "
+            f"{result.get('evidence_quality', {}).get('low_score_ratio', 0.0):.0%}"
         ),
         "",
         "## Issues",

@@ -5,7 +5,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from litagent.audit import note_quality_metrics, parse_quality_metrics, report_reference_metrics
+from litagent.audit import (
+    evidence_quality_metrics,
+    note_quality_metrics,
+    parse_quality_metrics,
+    report_reference_metrics,
+)
 from litagent.io import read_jsonl
 from litagent.status import workspace_status
 
@@ -28,13 +33,23 @@ def report_has_traceable_citations(report_text: str) -> bool:
 
 def report_has_synthesis_structure(report_text: str) -> bool:
     expected = [
+        "## 方法分类",
+        "## 系统对比",
+        "## 跨论文流程模式",
+        "## 对 litagent 的设计启发",
+        "## 下一步路线图",
+    ]
+    legacy = [
         "## Taxonomy Of Methods",
         "## Comparison Of Selected Systems",
         "## Pipeline Patterns Across Papers",
         "## Design Implications For Our Tool",
         "## Recommended Roadmap",
     ]
-    return sum(heading in report_text for heading in expected) >= 4
+    return max(
+        sum(heading in report_text for heading in expected),
+        sum(heading in report_text for heading in legacy),
+    ) >= 4
 
 
 def choose_quality_level(
@@ -87,6 +102,7 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
     search_concerns: list[str] = []
     selected_concerns: list[str] = []
     quality_concerns: list[str] = []
+    quality_warnings: list[str] = []
 
     selection_count = int(plan.get("selection_count") or 0)
     if not raw_results:
@@ -172,7 +188,7 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
         if selected and metrics["unique_paper_reference_count"] < min(len(selected), 5):
             quality_concerns.append("Final report has too few unique paper-specific references.")
         if metrics["unsupported_generic_claim_count"]:
-            quality_concerns.append(
+            quality_warnings.append(
                 "Final report may contain generic claims without paper support."
             )
         if "Original text insufficient" in report_text or "metadata, abstracts" in report_text:
@@ -184,8 +200,33 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
 
     evidence_json = workspace / "knowledge" / "evidence_table.json"
     evidence_md = workspace / "knowledge" / "evidence_table.md"
+    evidence_quality = evidence_quality_metrics(workspace)
     if not evidence_json.exists() or not evidence_md.exists():
         quality_concerns.append("Evidence table is missing.")
+    elif evidence_quality["total_snippets"] == 0 and selected:
+        quality_concerns.append("Evidence table exists but contains no usable snippets.")
+    else:
+        if evidence_quality["unknown_section_ratio"] > 0.4:
+            quality_warnings.append(
+                "Evidence table has a high unknown-section ratio: "
+                f"{evidence_quality['unknown_section_ratio']:.0%}."
+            )
+        if evidence_quality["noise_section_ratio"] > 0.25:
+            quality_warnings.append(
+                "Evidence table contains many snippets from low-priority/noise sections: "
+                f"{evidence_quality['noise_section_ratio']:.0%}."
+            )
+        if evidence_quality["low_score_ratio"] > 0.5:
+            quality_warnings.append(
+                "Evidence table has a high low-score snippet ratio: "
+                f"{evidence_quality['low_score_ratio']:.0%}."
+            )
+        unsupported_themes = evidence_quality["themes_without_paper_specific_support"]
+        if len(unsupported_themes) > 2:
+            quality_warnings.append(
+                "Several evidence themes lack enough paper-specific support: "
+                + ", ".join(unsupported_themes[:5])
+            )
 
     is_mock = any(str(row.get("source_query")) == "mock" for row in raw_results)
     quality_level = choose_quality_level(
@@ -245,10 +286,12 @@ def inspect_workspace(workspace: Path) -> dict[str, Any]:
         "parse_report_audit_quality": {
             **parse_quality,
             **note_quality,
+            "evidence_quality": evidence_quality,
             "audit_passed": status.get("audit_passed"),
             "final_report_exists": report_path.exists(),
             "evidence_table_exists": evidence_json.exists() and evidence_md.exists(),
             "concerns": quality_concerns,
+            "warnings": quality_warnings,
         },
         "recommended_next_action": recommended_next_action,
     }
@@ -290,6 +333,14 @@ def inspect_workspace_markdown(workspace: Path) -> str:
             f"{quality['notes_with_parsed_full_text_evidence']}"
         ),
         f"- Evidence table exists: {quality['evidence_table_exists']}",
+        (
+            "- Evidence snippets: "
+            f"{quality.get('evidence_quality', {}).get('total_snippets', 0)}"
+        ),
+        (
+            "- High-quality evidence snippets: "
+            f"{quality.get('evidence_quality', {}).get('high_quality_snippets', 0)}"
+        ),
         f"- Audit passed: {quality['audit_passed']}",
         "",
         "## Concerns",
@@ -299,6 +350,7 @@ def inspect_workspace_markdown(workspace: Path) -> str:
         *search["concerns"],
         *selected["concerns"],
         *quality["concerns"],
+        *quality.get("warnings", []),
     ]
     lines.extend(f"- {concern}" for concern in concerns)
     if not concerns:

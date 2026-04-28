@@ -4,17 +4,20 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from litagent.evidence import THEME_LABELS_ZH
 from litagent.io import read_json, read_jsonl
 from litagent.schema import format_short_citation, normalize_paper
+
+MIN_REPORT_SNIPPET_SCORE = 0.45
 
 
 def selected_papers_table(papers: list[dict[str, Any]]) -> list[str]:
     lines = [
-        "| Paper ID | Title | Year | Type | Citations | Sources |",
+        "| Paper ID | 论文标题 | 年份 | 类型 | 引用数 | 来源 |",
         "| --- | --- | ---: | --- | ---: | --- |",
     ]
     for paper in papers:
-        title = (paper.get("title") or "").replace("|", "\\|")
+        title = markdown_cell(paper.get("title"))
         sources = ", ".join(paper.get("source") or [])
         lines.append(
             f"| {paper['paper_id']} | {title} | {paper.get('year') or ''} | "
@@ -57,32 +60,43 @@ def first_sentence(text: str | None, *, fallback: str) -> str:
 
 def method_role(paper: dict[str, Any]) -> str:
     if has_terms(paper, ["systematic review automation", "screening", "data extraction"]):
-        return "Systematic review workflow automation"
+        return "系统综述工作流自动化"
     if has_terms(paper, ["paper-reading", "paper reading", "read scientific papers"]):
-        return "Paper-reading agent"
+        return "论文阅读智能体"
     if has_terms(paper, ["citation graph", "citation-aware", "citation quality"]):
-        return "Citation/evidence-aware synthesis"
+        return "引文或证据感知综合"
     if has_terms(paper, ["survey generation", "survey paper generation"]):
-        return "Scientific survey generation"
+        return "科学综述生成"
     if has_terms(paper, ["literature synthesis", "related work drafting"]):
-        return "Literature synthesis and related-work drafting"
+        return "文献综合与相关工作写作"
     if has_terms(paper, ["comparative literature summary", "comparative summary"]):
-        return "Comparative literature summarization"
+        return "比较式文献总结"
     if has_terms(paper, ["literature review generation", "review generation"]):
-        return "Literature review generation"
-    return paper.get("paper_type") or "Research system"
+        return "文献综述生成"
+    return paper.get("paper_type") or "研究系统"
 
 
 def why_it_matters(paper: dict[str, Any]) -> str:
     if has_terms(paper, ["multi-agent", "multiple agents", "specialized agents"]):
-        return "Uses agent decomposition for review work."
+        return "该论文直接涉及多智能体分工，对拆解综述流程有参考价值。"
     if has_terms(paper, ["citation graph", "citation quality"]):
-        return "Connects synthesis to citation/evidence structure."
+        return "该论文把综合写作和引文或证据结构连接起来。"
     if has_terms(paper, ["screening", "data extraction"]):
-        return "Automates formal systematic-review stages."
+        return "该论文覆盖系统综述中的筛选和信息抽取环节。"
     if has_terms(paper, ["paper-reading", "paper reading"]):
-        return "Improves the paper-reading subtask."
-    return first_sentence(paper.get("abstract"), fallback="Provides evidence for the target field.")
+        return "该论文强化了论文阅读和证据抽取子任务。"
+    return "该论文与目标主题相关，具体贡献需要结合证据表和 parsed Markdown 复核。"
+
+
+def core_question_line(question: str) -> str:
+    lower = question.lower()
+    if "which" in lower and "multi-agent" in lower:
+        return "有哪些多智能体或 LLM-agent 系统在自动化文献综述、综述生成或系统综述工作流？"
+    if "divide work" in lower or "planning, retrieval" in lower:
+        return "这些系统如何拆分规划、检索、论文阅读、引文处理、写作、审阅和修订职责？"
+    if "evidence-grounding" in lower or "citation-aware" in lower:
+        return "哪些证据 grounding、引文感知综合、评估基准和工作流模式值得 litagent 借鉴？"
+    return question if not question.isascii() else f"需要人工翻译和复核的研究问题：{question}"
 
 
 def markdown_cell(value: str | None) -> str:
@@ -103,7 +117,7 @@ def failed_download_lines(papers: list[dict[str, Any]]) -> list[str]:
         if paper.get("download_status") in {"failed", "skipped"} and not paper.get("local_pdf_path")
     ]
     if not failures:
-        return ["- No failed or skipped downloads in the selected set."]
+        return ["- selected papers 中没有失败或跳过的 PDF 下载。"]
     return [
         (
             f"- {paper['paper_id']}: {paper.get('download_status')} - "
@@ -123,33 +137,108 @@ def row_refs(row: dict[str, Any]) -> str:
     return ", ".join(f"[{paper_id}]" for paper_id in row.get("supporting_papers", []))
 
 
+def theme_label(row_or_theme: dict[str, Any] | str) -> str:
+    if isinstance(row_or_theme, dict):
+        theme = str(row_or_theme.get("theme") or "")
+        label = str(row_or_theme.get("theme_label") or THEME_LABELS_ZH.get(theme, theme))
+    else:
+        theme = row_or_theme
+        label = THEME_LABELS_ZH.get(theme, theme)
+    return f"{label}（{theme}）" if theme and label != theme else label
+
+
 def evidence_by_theme(rows: list[dict[str, Any]], theme: str) -> dict[str, Any]:
     for row in rows:
         if row.get("theme") == theme:
             return row
-    return {"theme": theme, "claim": "Evidence table missing this theme.", "supporting_papers": []}
+    return {
+        "theme": theme,
+        "theme_label": THEME_LABELS_ZH.get(theme, theme),
+        "claim": "证据表缺少该主题。",
+        "supporting_papers": [],
+        "evidence_snippets_or_sections": [],
+        "gaps_or_uncertainties": ["证据表缺少该主题。"],
+    }
+
+
+def high_quality_snippets(
+    row: dict[str, Any],
+    *,
+    limit: int = 3,
+    min_score: float = MIN_REPORT_SNIPPET_SCORE,
+) -> list[dict[str, Any]]:
+    snippets = row.get("evidence_snippets_or_sections") or []
+    usable = [
+        item
+        for item in snippets
+        if float(item.get("snippet_score") or 0.0) >= min_score
+        and "noise_section" not in set(item.get("quality_flags") or [])
+        and "code_or_prompt" not in set(item.get("quality_flags") or [])
+        and "table_like" not in set(item.get("quality_flags") or [])
+    ]
+    usable.sort(key=lambda item: float(item.get("snippet_score") or 0.0), reverse=True)
+    return usable[:limit]
 
 
 def representative_snippet(row: dict[str, Any]) -> str:
-    snippets = row.get("evidence_snippets_or_sections") or []
+    snippets = high_quality_snippets(row, limit=1)
     if not snippets:
-        return "No extracted snippet."
+        return "证据不足：该主题没有可直接写入正文的高质量证据片段。"
     item = snippets[0]
-    return f"{item.get('snippet')} [{item.get('paper_id')}]"
+    return (
+        f"{item.get('snippet')} [{item.get('paper_id')}] "
+        f"(section={item.get('section')}, score={float(item.get('snippet_score') or 0.0):.2f})"
+    )
 
 
 def supported_claim(row: dict[str, Any]) -> str:
     refs_text = row_refs(row)
-    return f"- {row.get('claim')} {refs_text or '[evidence gap]'}"
+    if not refs_text or not high_quality_snippets(row, limit=1):
+        return f"- 证据不足：{row.get('claim')} {refs_text or '[evidence gap]'}"
+    return f"- {row.get('claim')} 支撑论文：{refs_text}"
 
 
 def paper_evidence_summary(paper: dict[str, Any], rows: list[dict[str, Any]]) -> str:
     themes = [
-        row["theme"]
+        theme_label(row)
         for row in rows
         if paper["paper_id"] in set(row.get("supporting_papers") or [])
     ]
-    return ", ".join(themes[:4]) or "No evidence-table theme"
+    return ", ".join(themes[:4]) or "证据表中暂无明确主题支撑"
+
+
+def evidence_theme_lines(rows: list[dict[str, Any]]) -> list[str]:
+    lines: list[str] = []
+    if not rows:
+        return ["- 证据表缺失；请先运行 `litagent build-evidence WORKSPACE --json`。"]
+    for row in rows:
+        refs_text = row_refs(row) or "[evidence gap]"
+        lines.extend(
+            [
+                f"### {theme_label(row)}",
+                "",
+                f"- 综合判断：{row.get('claim')} 支撑论文：{refs_text}",
+                f"- 置信度：{row.get('confidence')}",
+                f"- 代表性高质量证据：{representative_snippet(row)}",
+                f"- 证据缺口：{'; '.join(row.get('gaps_or_uncertainties') or []) or '无'}",
+                "",
+            ]
+        )
+        snippets = high_quality_snippets(row, limit=3)
+        if snippets:
+            lines.append("| Paper ID | Section | Score | Evidence |")
+            lines.append("| --- | --- | ---: | --- |")
+            for item in snippets:
+                lines.append(
+                    f"| {item.get('paper_id')} | {item.get('section')} | "
+                    f"{float(item.get('snippet_score') or 0.0):.2f} | "
+                    f"{markdown_cell(str(item.get('snippet') or ''))} |"
+                )
+            lines.append("")
+        else:
+            lines.append("- 当前主题只有低分或噪声风险证据，正文综合应谨慎使用。")
+            lines.append("")
+    return lines
 
 
 def generate_final_report(workspace: Path) -> str:
@@ -172,49 +261,47 @@ def generate_final_report(workspace: Path) -> str:
     design = evidence_by_theme(evidence_rows, "design implications for litagent")
 
     lines = [
-        "# Final Research Report",
+        "# 最终研究报告草稿",
         "",
-        "## Executive Summary",
+        (
+            "本报告由 `litagent report` 基于机器生成笔记和证据表自动生成，定位是中文报告草稿，"
+            "不是最终学术判断。Codex / Agent 仍需要复核 selected papers、证据质量和综合结论。"
+        ),
         "",
-        f"This report summarizes `{plan.get('topic', 'the topic')}` using {len(papers)} selected "
-        f"papers and the generated evidence table. {refs(papers, limit=5)}",
+        "## 执行摘要",
+        "",
+        (
+            f"本报告围绕 `{plan.get('topic', '目标主题')}`，使用 {len(papers)} 篇 selected papers "
+            f"和证据表进行小规模真实综述草稿生成。代表性论文包括 {refs(papers, limit=5)}。"
+        ),
         supported_claim(architecture),
         supported_claim(generation),
         supported_claim(citation),
         "",
-        "## Field Background",
+        "## 研究背景",
         "",
         supported_claim(generation),
         supported_claim(systematic),
         supported_claim(paper_reading),
         "",
-        "## Core Problems",
+        "## 核心问题",
         "",
-        *[f"- {question}" for question in plan.get("core_questions", [])],
+        *[f"- {core_question_line(str(question))}" for question in plan.get("core_questions", [])],
         supported_claim(citation),
         supported_claim(evaluation),
         "",
-        "## Technical Route Categories",
+        "## 方法分类",
         "",
     ]
     for method, group in sorted(method_groups.items()):
-        lines.append(f"- {method}: {len(group)} papers, including {refs(group)}.")
+        lines.append(f"- {method}: {len(group)} 篇论文，包括 {refs(group)}。")
 
     lines.extend(
         [
             "",
-            "## Taxonomy Of Methods",
+            "## 论文代表性列表",
             "",
-            supported_claim(architecture),
-            supported_claim(generation),
-            supported_claim(systematic),
-            supported_claim(paper_reading),
-            supported_claim(citation),
-            supported_claim(evaluation),
-            "",
-            "## Representative Papers",
-            "",
-            "| Paper ID | Title | Year | Type | Evidence Themes |",
+            "| Paper ID | 论文标题 | 年份 | 类型 | 证据主题 |",
             "| --- | --- | ---: | --- | --- |",
         ]
     )
@@ -228,9 +315,9 @@ def generate_final_report(workspace: Path) -> str:
     lines.extend(
         [
             "",
-            "## Comparison Of Selected Systems",
+            "## 系统对比",
             "",
-            "| Paper ID | Role | Evidence-Backed Interpretation |",
+            "| Paper ID | 方法角色 | 证据支撑解释 |",
             "| --- | --- | --- |",
         ]
     )
@@ -243,69 +330,48 @@ def generate_final_report(workspace: Path) -> str:
     lines.extend(
         [
             "",
-            "## Paper Comparison Table",
+            "## 论文对照表",
             "",
             *selected_papers_table(papers),
             "",
-            "## Evidence-Backed Synthesis Themes",
+            "## 证据支撑的主题综合",
             "",
-        ]
-    )
-    if evidence_rows:
-        for row in evidence_rows:
-            refs_text = row_refs(row) or "[evidence gap]"
-            lines.extend(
-                [
-                    f"### {row.get('theme')}",
-                    "",
-                    f"- Claim: {row.get('claim')} {refs_text}",
-                    f"- Confidence: {row.get('confidence')}",
-                    f"- Representative evidence: {representative_snippet(row)}",
-                    f"- Gaps: {'; '.join(row.get('gaps_or_uncertainties') or []) or 'None'}",
-                    "",
-                ]
-            )
-    else:
-        lines.append("- Evidence table is missing; run `litagent build-evidence WORKSPACE --json`.")
-        lines.append("")
-
-    lines.extend(
-        [
-            "## Pipeline Patterns Across Papers",
+            *evidence_theme_lines(evidence_rows),
+            "## 跨论文流程模式",
             "",
             supported_claim(architecture),
             supported_claim(systematic),
             supported_claim(citation),
             "",
-            "## Role Of Multi-Agent Architecture",
+            "## 多智能体架构的作用",
             "",
             supported_claim(architecture),
-            f"- Representative snippet: {representative_snippet(architecture)}",
+            f"- 代表性证据：{representative_snippet(architecture)}",
             "",
-            "## Citation Graph / Evidence Handling Patterns",
+            "## 引文图谱与证据处理模式",
             "",
             supported_claim(citation),
-            f"- Representative snippet: {representative_snippet(citation)}",
+            f"- 代表性证据：{representative_snippet(citation)}",
             "",
-            "## Evaluation Methods",
+            "## 评估方法",
             "",
             supported_claim(evaluation),
-            f"- Representative snippet: {representative_snippet(evaluation)}",
+            f"- 代表性证据：{representative_snippet(evaluation)}",
             "",
-            "## Survey Paper Synthesis",
+            "## 综述类论文综合",
             "",
         ]
     )
     survey = grouped.get("survey", [])
     if survey:
         lines.extend(
-            f"- {paper.get('title')} frames part of the area. {paper_ref(paper)}"
+            f"- {paper.get('title')} 为该方向提供综述性背景。{paper_ref(paper)}"
             for paper in survey
         )
     else:
         lines.append(
-            "- No traditional survey paper was selected; the survey-level synthesis is built "
-            f"from system and benchmark papers. {row_refs(generation) or refs(papers, limit=5)}"
+            "- 当前 selected papers 中没有传统 survey 类型论文；综述层综合主要来自系统、基准和"
+            f"方法论文。{row_refs(generation) or refs(papers, limit=5)}"
         )
 
     technical_like = [
@@ -313,69 +379,62 @@ def generate_final_report(workspace: Path) -> str:
         for paper in papers
         if paper.get("paper_type") in {"technical", "system", "benchmark", "dataset"}
     ]
-    lines.extend(["", "## Technical Paper Synthesis", ""])
-    lines.extend(
-        f"- {paper.get('title')} contributes to `{method_role(paper)}` and is linked to "
-        f"{paper_evidence_summary(paper, evidence_rows)}. {paper_ref(paper)}"
-        for paper in technical_like
-    )
-    if not technical_like:
-        lines.append("- No technical/system/benchmark/dataset papers were selected.")
+    lines.extend(["", "## 技术论文综合", ""])
+    if technical_like:
+        lines.extend(
+            f"- {paper.get('title')} 关联到 `{method_role(paper)}`，证据主题包括 "
+            f"{paper_evidence_summary(paper, evidence_rows)}。{paper_ref(paper)}"
+            for paper in technical_like
+        )
+    else:
+        lines.append(
+            "- 当前 selected papers 中没有明确的 technical/system/benchmark/dataset 类型论文。"
+        )
 
     lines.extend(
         [
             "",
-            "## Unresolved Problems",
-            "",
-            supported_claim(limitations),
-            "",
-            "## Future Research / Innovation Directions",
-            "",
-            "- Build claim-to-evidence tables before writing long-form synthesis. "
-            f"{row_refs(design) or refs(papers, limit=5)}",
-            "- Add citation graph extraction and citation-neighborhood expansion. "
-            f"{row_refs(citation) or refs(papers, limit=5)}",
-            "- Evaluate report quality with citation faithfulness, retrieval coverage, and "
-            f"human revision cost. {row_refs(evaluation) or refs(papers, limit=5)}",
-            "",
-            "## Limitations Of Current Literature",
+            "## 局限和研究空白",
             "",
             supported_claim(limitations),
             (
-                "- Current evidence remains partial when the selected set is small or source "
-                f"diversity is limited. {refs(papers, limit=5)}"
+                "- 当前证据仍受 selected papers 规模、来源多样性和 PDF 解析质量限制；"
+                f"这些结论应作为小规模真实综述草稿使用。{refs(papers, limit=5)}"
             ),
             "",
-            "## Explicit Remaining Evidence Gaps",
+            "## 明确剩余证据缺口",
             "",
         ]
     )
     for row in evidence_rows:
         for gap in row.get("gaps_or_uncertainties") or []:
-            lines.append(f"- {row.get('theme')}: {gap}")
+            lines.append(f"- {theme_label(row)}: {gap}")
     if not evidence_rows:
-        lines.append("- Evidence table is missing.")
+        lines.append("- 证据表缺失。")
 
     lines.extend(
         [
             "",
-            "## Design Implications For Our Tool",
+            "## 对 litagent 的设计启发",
             "",
             supported_claim(design),
-            "- Keep `read -> build-knowledge -> build-evidence -> report -> audit -> inspect` "
-            f"as the preferred real-review path. {row_refs(design) or refs(papers, limit=5)}",
+            "- 保持 `read -> build-knowledge -> build-evidence -> report -> audit -> "
+            "inspect-workspace` "
+            f"作为真实综述的首选路径。{row_refs(design) or refs(papers, limit=5)}",
+            "- 报告正文应优先使用高 `snippet_score` 证据，低分证据只作为人工复核线索。",
             "",
-            "## Recommended Roadmap",
+            "## 下一步路线图",
             "",
-            "1. Improve parsed-Markdown section extraction for agent roles, methods, datasets, "
-            "metrics, and limitations.",
-            "2. Store evidence snippets and claim support before report generation.",
-            "3. Add citation graph extraction and source-quality scoring.",
-            "4. Configure Semantic Scholar API access before a larger real review.",
-            "5. Scale only after `review-selection`, parse quality, evidence table, audit, and "
-            "inspect-workspace all remain clean.",
+            "1. 增强章节感知证据抽取，继续降低 references、appendix、prompt、code、"
+            "table 和 layout artifacts 噪声。",
+            "2. 完善证据质量评分，让每条 evidence snippet 都有 section、snippet_score、"
+            "quality_flags 和质量说明。",
+            "3. 改进中文研究级报告草稿，但继续保留 Codex / Agent 二次判断和中文综合职责。",
+            "4. 配置 `SEMANTIC_SCHOLAR_API_KEY` 后，再规划 `./demo-real-v4` 的来源多样性验证。",
+            "5. 只有当 `review-selection`、解析质量、证据表、audit 和 "
+            "inspect-workspace 都保持干净时，再考虑扩大规模。",
             "",
-            "## Recommended Reading Order",
+            "## 推荐阅读顺序",
             "",
         ]
     )
@@ -384,7 +443,7 @@ def generate_final_report(workspace: Path) -> str:
         for index, paper in enumerate(papers, start=1)
     )
 
-    lines.extend(["", "## Appendix: Search Queries", ""])
+    lines.extend(["", "## 附录：检索式", ""])
     for source, queries in search_queries.items():
         lines.append(f"### {source}")
         lines.extend(f"- `{query}`" for query in queries)
@@ -392,23 +451,23 @@ def generate_final_report(workspace: Path) -> str:
 
     lines.extend(
         [
-            "## Appendix: Evidence Table",
+            "## 附录：证据表",
             "",
-            "- [Evidence Table](../knowledge/evidence_table.md)",
-            "- [Evidence Table JSON](../knowledge/evidence_table.json)",
+            "- [证据表](../knowledge/evidence_table.md)",
+            "- [证据表 JSON](../knowledge/evidence_table.json)",
             "",
-            "## Appendix: Data Sources",
+            "## 附录：数据源",
             "",
             "- arXiv",
             "- Semantic Scholar",
             "- OpenAlex",
-            "- Unpaywall for legal open-access PDF lookup",
+            "- Unpaywall 用于合法开放获取 PDF 查询",
             "",
-            "## Appendix: Failed Download List",
+            "## 附录：下载失败列表",
             "",
             *failed_download_lines(papers),
             "",
-            "## References",
+            "## 参考文献",
             "",
         ]
     )

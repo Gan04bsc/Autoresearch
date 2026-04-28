@@ -131,6 +131,15 @@
   and source-diversity validation.
 - Added project-level documentation for Codex / Agent vs. `litagent` responsibility boundaries,
   Chinese output policy, quality labels, regression checks, and the next-stage roadmap.
+- Implemented the first evidence-quality enhancement slice: section-aware evidence extraction,
+  snippet cleaning, `snippet_score`, `snippet_score_explanation`, and `quality_flags`.
+- Updated `knowledge/evidence_table.json` and `knowledge/evidence_table.md` so evidence is grouped
+  by theme and each snippet records section, score, confidence, quality flags, and uncertainty.
+- Updated `litagent report` to produce a Chinese draft report by default and use high-score
+  evidence snippets for paper-specific synthesis instead of writing low-score noise into the body.
+- Updated `audit` and `inspect-workspace` to report evidence-quality signals such as unknown
+  sections, low-score evidence ratio, noise sections, and themes without enough paper-specific
+  support.
 
 ## Validation
 
@@ -200,6 +209,15 @@
   the stage-convergence documentation update.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after the stage-convergence
   documentation update.
+- Passed: non-network validation on `./demo-real-v3` after evidence-quality updates:
+  `litagent read`, `litagent build-knowledge`, `litagent build-evidence --json`,
+  `litagent report`, `litagent audit`, and `litagent inspect-workspace --json`.
+- `./demo-real-v3` still labels as `small_real_review`; inspect reports 12/12 parsed Markdown,
+  12 notes from parsed Markdown, 0 abstract fallback, 93 evidence snippets, 85 high-quality
+  snippets, 0% unknown-section ratio, about 1.1% noise-section ratio, and audit PASS.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 42 tests after
+  evidence-quality updates.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after evidence-quality updates.
 
 ## Known Issues
 
@@ -213,13 +231,13 @@
 - DOI PDF lookup through Unpaywall requires `UNPAYWALL_EMAIL` or `LITAGENT_CONTACT_EMAIL`.
 - MinerU Agent lightweight API is IP rate-limited; failed or timed-out parses are logged and do not stop the pipeline.
 - MinerU precision API requires `MINERU_API_TOKEN`; large/complex PDFs should use `--mineru-mode precision`.
-- There is no LLM-backed reader yet. Notes and reports now use parsed-Markdown evidence, but
-  extraction is still deterministic and can select noisy snippets from headers, captions, or
-  reference-adjacent text.
-- `./demo-real-v3` confirms that evidence extraction can still select noisy snippets from
-  references, headers, captions, prompts, code, tables, and layout artifacts.
-- Current deterministic `litagent report` is still a report draft and may read like an English
-  template. Final user-facing research synthesis should be written in Chinese by Codex / Agent.
+- There is no LLM-backed reader yet. Notes and reports now use parsed-Markdown evidence with
+  section and score signals, but extraction is still deterministic and can miss subtle context.
+- `./demo-real-v3` remains the regression baseline for checking whether section-aware scoring
+  reduces references, headers, captions, prompts, code, tables, and layout artifacts.
+- Current deterministic `litagent report` is now a Chinese draft report, but it is still not final
+  scholarly judgment. Final user-facing research synthesis should be reviewed and strengthened by
+  Codex / Agent.
 - Historical `./demo-agent-mock` logs still contain the earlier 5 local parse skips from before `pypdf` was installed, but rerunning download/parse/read/report/audit produced 5/5 parsed Markdown files and notes from parsed Markdown.
 - Semantic Scholar returned 429 during `./demo-real-v2` without an API key, so the next real run
   should set `SEMANTIC_SCHOLAR_API_KEY` when available and treat OpenAlex dominance as a warning
@@ -229,10 +247,10 @@
 
 ## Next Task
 
-Do not expand to larger real reviews yet. Next work should focus only on:
+Do not expand to larger real reviews yet. Next work should focus only on stabilizing:
 
-1. Section-aware evidence extraction.
-2. Evidence quality scoring.
+1. Section-aware evidence extraction on `./demo-real-v3`.
+2. Evidence quality scoring thresholds and audit/inspect warnings.
 3. Chinese research-grade report drafting and Agent synthesis workflow.
 4. A later `./demo-real-v4` source-diversity validation only after `SEMANTIC_SCHOLAR_API_KEY` is
    configured.

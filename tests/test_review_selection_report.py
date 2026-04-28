@@ -143,9 +143,21 @@ def write_review_workspace(workspace: Path, *, source_diverse: bool = False) -> 
                     "evidence_snippets_or_sections": [
                         {
                             "paper_id": "p-111111111111",
+                            "paper_title": (
+                                "LiRA: A Multi-Agent Framework for Literature Review Generation"
+                            ),
                             "field": "agent_roles",
                             "source": "parsed-full-text",
-                            "snippet": "The framework uses multiple agents.",
+                            "snippet": (
+                                "We propose a multi-agent framework with planner agent, "
+                                "collector agent, writer agent, and reviewer agent."
+                            ),
+                            "section": "Method",
+                            "snippet_score": 0.82,
+                            "snippet_score_explanation": "加分：Method 章节、agent_roles；扣分：无",
+                            "confidence": "high",
+                            "quality_flags": [],
+                            "uncertainty_or_gap": "",
                         }
                     ],
                     "confidence": "medium",
@@ -175,11 +187,12 @@ def test_report_contains_synthesis_sections() -> None:
 
     report = generate_final_report(workspace)
 
-    assert "## Taxonomy Of Methods" in report
-    assert "## Comparison Of Selected Systems" in report
-    assert "## Pipeline Patterns Across Papers" in report
-    assert "## Design Implications For Our Tool" in report
-    assert "## Recommended Roadmap" in report
+    assert "## 方法分类" in report
+    assert "## 系统对比" in report
+    assert "## 跨论文流程模式" in report
+    assert "## 对 litagent 的设计启发" in report
+    assert "## 下一步路线图" in report
+    assert "最终研究报告草稿" in report
 
 
 def test_inspect_labels_successful_real_run_as_small_real_review() -> None:

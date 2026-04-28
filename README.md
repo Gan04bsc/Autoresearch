@@ -23,7 +23,7 @@ Agentic Literature Research Workbench CLI.
 
 从当前阶段开始，Agent 面向用户的输出默认使用中文。最终报告和研究笔记也应默认使用中文，论文标题、命令、文件名、MCP tool 名、API 名和代码标识符可以保留英文原文。重要英文术语第一次出现时使用“中文解释（English original）”格式。
 
-当前确定性 `litagent report` 仍可能生成英文模板式草稿，因此它只能作为机器生成的中间产物。真实研究输出需要 Codex / Agent 基于 `library/notes`、`library/markdown` 和 `knowledge/evidence_table.*` 进行二次中文综合。
+当前确定性 `litagent report` 默认生成中文报告草稿，并优先使用高 `snippet_score` 证据片段。它仍然只是机器生成的中间产物；真实研究输出需要 Codex / Agent 基于 `library/notes`、`library/markdown` 和 `knowledge/evidence_table.*` 进行二次中文综合。
 
 ## 质量等级
 
@@ -130,9 +130,15 @@ limitations, and relevance to multi-agent literature review automation.
 - `knowledge/evidence_table.json`
 
 The evidence table maps synthesis themes to supporting papers, snippets or sections, confidence,
-and gaps. `litagent report` uses this table to make claim-to-paper support explicit. Audit and
-inspection warn when the evidence table is missing, notes remain abstract-level despite parsed
-Markdown, or the report has too few paper-specific references.
+and gaps. In the current evidence-quality phase, every evidence item should also include
+`section`, `snippet_score`, `snippet_score_explanation`, and `quality_flags`. Codex / Agent must
+inspect these fields before accepting the report.
+
+`litagent report` now generates a Chinese draft report and prioritizes higher-score evidence
+snippets for paper-specific claims. Low-score snippets remain in the evidence table for review,
+but should not be treated as strong support. Audit and inspection warn when the evidence table is
+missing, notes remain abstract-level despite parsed Markdown, report references are too weak, or
+evidence quality is poor.
 
 ## MinerU PDF Parsing
 
@@ -169,8 +175,9 @@ workspace as `smoke_test_run`, `small_real_review`, `source_diverse_real_review`
 `production_quality_review`; summarizes search and selection concerns; reports
 parse/report/audit concerns; and recommends the next action. Source imbalance is a warning, not by
 itself a reason to downgrade an otherwise successful small real review to smoke-test quality.
-Missing evidence tables, shallow notes, and generic unsupported report claims are treated as
-quality concerns.
+Missing evidence tables, shallow notes, generic unsupported report claims, high unknown-section
+ratios, many low-score snippets, and noise-heavy evidence are treated as quality signals that
+Codex / Agent must inspect. `audit PASS` remains insufficient by itself.
 
 ## Codex-Orchestrated Mode
 
@@ -197,8 +204,8 @@ python -m litagent.mcp_server
 Recommended next broader real run:
 
 ```text
-下一阶段先不要扩大真实检索规模。优先改进 section-aware evidence extraction、
-evidence quality scoring 和中文研究级报告生成。
+下一阶段先不要扩大真实检索规模。当前优先级是稳定 section-aware evidence extraction、
+evidence quality scoring 和中文研究级报告草稿质量。
 
 配置 SEMANTIC_SCHOLAR_API_KEY 后，再使用 fresh workspace ./demo-real-v4
 做 max_papers=15 的 source-diverse validation。

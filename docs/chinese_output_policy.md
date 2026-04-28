@@ -50,6 +50,7 @@
 
 ## 当前实现状态
 
-当前确定性 `litagent report` 仍可能生成英文模板式草稿。它只能视为机器生成的报告草稿，不应作为最终中文研究报告。现阶段由 Codex / Agent 基于 `library/notes`、`library/markdown` 和 `knowledge/evidence_table.*` 进行二次中文综合。
-
-下一阶段目标是让 `litagent report` 直接生成中文报告草稿，并让 Codex / Agent 在此基础上做研究级中文综合。
+当前确定性 `litagent report` 已默认生成中文报告草稿，并优先使用带 `snippet_score`
+的高质量证据片段。但它仍只能视为机器生成的报告草稿，不应作为最终中文研究报告。
+Codex / Agent 必须继续基于 `library/notes`、`library/markdown` 和
+`knowledge/evidence_table.*` 进行二次判断、质疑和中文综合。

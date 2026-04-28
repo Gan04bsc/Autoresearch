@@ -18,7 +18,8 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 判断是否继续下一步，必要时局部重跑 `search`、`dedup`、`review-selection`、
   `parse` 或 `report`。
 - 判断 `selected_papers.jsonl` 是否与研究主题相关。
-- 判断证据表是否可用，是否存在噪声片段、证据不足或主题支撑过弱。
+- 判断证据表是否可用，是否记录 `section`、`snippet_score`、
+  `snippet_score_explanation` 和 `quality_flags`，是否存在噪声片段、证据不足或主题支撑过弱。
 - 判断 `reports/final_report.md` 是否浅薄、模板化、缺少论文级支撑或不适合作为真实综述。
 - 基于 `library/notes`、`library/markdown`、`knowledge/evidence_table.*` 和元数据进行中文综合。
 - 不接受 `audit PASS` 作为唯一成功标准。
@@ -35,7 +36,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 初步分类论文类型。
 - 生成初步阅读笔记。
 - 构建知识文件。
-- 构建证据表。
+- 构建带章节和质量评分的证据表。
 - 生成报告草稿。
 - 输出 `audit` 和 `inspect-workspace` 质量信号。
 
@@ -76,8 +77,9 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 12. 普通文本 PDF 优先使用本地 `pypdf`。MinerU 只用于 OCR、复杂版面或表格密集论文。
 13. 检查下载数、解析 Markdown 数、解析成功率和 abstract fallback 数。
 14. 运行 `classify -> read -> build-knowledge -> build-evidence -> report`。
-15. 检查证据表是否按主题组织，是否有论文级支撑，是否有明显噪声片段。
-16. 检查报告是否中文、是否证据支撑、是否有论文级引用、是否避免泛泛而谈。
+15. 检查证据表是否按主题组织，是否有论文级支撑，是否有 `section`、
+    `snippet_score`、质量说明和明显噪声标记。
+16. 检查报告是否中文、是否优先使用高质量证据、是否有论文级引用、是否避免泛泛而谈。
 17. 运行 `audit`。
 18. 运行 `inspect-workspace`。
 19. 如果 `audit PASS` 但报告浅薄、证据表弱、解析失败、来源失衡或候选论文偏题，必须继续修正。
@@ -97,6 +99,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 
 - 不要无规划地“跑一轮发现问题加一个功能”。
 - 不要把 deterministic report 当作最终研究报告。
+- 不要只因为 evidence table 存在就接受报告；必须检查证据质量。
 - 不要把 MinerU 作为默认解析路径。
 - 不要在没有 `SEMANTIC_SCHOLAR_API_KEY` 的情况下反复扩大真实检索。
 - 不要扩大到 30 或 50 篇论文。

@@ -3,9 +3,21 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from litagent.evidence_quality import confidence_from_score, score_snippet
 from litagent.io import read_json, read_jsonl, write_json
 from litagent.reader import extract_paper_evidence, paper_text
 from litagent.schema import normalize_paper
+
+THEME_LABELS_ZH: dict[str, str] = {
+    "multi-agent architecture": "多智能体架构",
+    "survey/literature review generation": "综述生成",
+    "systematic review workflow": "系统综述工作流",
+    "paper reading agents": "论文阅读智能体",
+    "citation-aware synthesis": "引文感知综合",
+    "evaluation and benchmarks": "评估与基准",
+    "limitations and open problems": "局限与开放问题",
+    "design implications for litagent": "对 litagent 的设计启发",
+}
 
 THEME_SPECS: dict[str, dict[str, Any]] = {
     "multi-agent architecture": {
@@ -23,10 +35,7 @@ THEME_SPECS: dict[str, dict[str, Any]] = {
             "writer agent",
         ],
         "strict_terms": True,
-        "claim": (
-            "The literature uses multi-agent decomposition to separate planning, retrieval, "
-            "writing, review, and refinement responsibilities."
-        ),
+        "claim": "相关系统倾向于用多智能体分工拆解规划、检索、写作、审阅和修订职责。",
     },
     "survey/literature review generation": {
         "fields": ["proposed_system_or_method", "pipeline_stages"],
@@ -40,10 +49,7 @@ THEME_SPECS: dict[str, dict[str, Any]] = {
             "related work drafting",
         ],
         "strict_terms": True,
-        "claim": (
-            "Survey and literature-review generation systems increasingly use staged workflows "
-            "instead of one-shot generation."
-        ),
+        "claim": "综述和文献回顾生成系统更适合采用分阶段工作流，而不是一次性生成。",
     },
     "systematic review workflow": {
         "fields": ["problem_addressed", "retrieval_search_strategy", "pipeline_stages"],
@@ -57,10 +63,7 @@ THEME_SPECS: dict[str, dict[str, Any]] = {
             "prisma",
         ],
         "strict_terms": True,
-        "claim": (
-            "Systematic-review automation requires operational support for screening, scoring, "
-            "extraction, validation, and iterative review rounds."
-        ),
+        "claim": "系统综述自动化需要支持筛选、评分、信息抽取、验证和迭代审阅等可操作环节。",
     },
     "paper reading agents": {
         "fields": ["agent_roles", "retrieval_search_strategy", "key_findings"],
@@ -72,10 +75,7 @@ THEME_SPECS: dict[str, dict[str, Any]] = {
             "paperguide",
         ],
         "strict_terms": True,
-        "claim": (
-            "Paper-reading agents are a reusable upstream capability for extracting task-relevant "
-            "evidence before synthesis."
-        ),
+        "claim": "论文阅读智能体是综合写作之前抽取任务相关证据的可复用上游能力。",
     },
     "citation-aware synthesis": {
         "fields": ["citation_or_evidence_handling", "retrieval_search_strategy"],
@@ -91,26 +91,17 @@ THEME_SPECS: dict[str, dict[str, Any]] = {
             "grounding",
         ],
         "strict_terms": True,
-        "claim": (
-            "Citation-aware synthesis needs source relationships and evidence handling before "
-            "the final prose-writing step."
-        ),
+        "claim": "引文感知综合需要在最终写作前显式处理来源关系、证据片段和引用可靠性。",
     },
     "evaluation and benchmarks": {
         "fields": ["evaluation_setup", "datasets_or_benchmarks", "key_findings"],
         "terms": ["evaluation", "benchmark", "dataset", "metrics", "human evaluation"],
-        "claim": (
-            "Evaluation is multi-dimensional, spanning content quality, structure, citation "
-            "quality, retrieval coverage, and human judgment."
-        ),
+        "claim": "评估应覆盖内容质量、结构质量、引文质量、检索覆盖率和人工判断等多个维度。",
     },
     "limitations and open problems": {
         "fields": ["limitations", "citation_or_evidence_handling"],
         "terms": ["limitation", "challenge", "future work", "hallucination", "gap"],
-        "claim": (
-            "Open problems remain around citation faithfulness, retrieval coverage, parser "
-            "quality, and robust evaluation."
-        ),
+        "claim": "当前开放问题集中在引文忠实性、检索覆盖率、解析质量和稳健评估上。",
     },
     "design implications for litagent": {
         "fields": [
@@ -120,10 +111,7 @@ THEME_SPECS: dict[str, dict[str, Any]] = {
             "evaluation_setup",
         ],
         "terms": ["agent", "pipeline", "citation", "evaluation", "workflow"],
-        "claim": (
-            "litagent should keep search, selection, parsing, evidence extraction, synthesis, "
-            "and audit as separate inspectable artifacts."
-        ),
+        "claim": "litagent 应保持搜索、选择、解析、证据抽取、综合和审计等环节相互独立且可检查。",
     },
 }
 
@@ -150,6 +138,10 @@ def paper_matches_theme(
     field_snippets: list[str] = []
     for field in spec["fields"]:
         item = fields.get(field) or {}
+        field_snippets.extend(
+            str(evidence_item.get("snippet") or "")
+            for evidence_item in item.get("evidence_items") or []
+        )
         field_snippets.extend(str(snippet) for snippet in item.get("snippets") or [])
 
     searchable = " ".join(
@@ -175,29 +167,83 @@ def evidence_items_for_theme(
     paper: dict[str, Any],
     evidence: dict[str, Any],
     spec: dict[str, Any],
+    theme: str,
 ) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
     fields = evidence.get("fields") or {}
     for field in spec["fields"]:
         item = fields.get(field) or {}
-        for snippet in item.get("snippets") or []:
+        evidence_items = item.get("evidence_items") or [
+            {
+                "snippet": snippet,
+                "section": "Unknown",
+                "snippet_score": 0.0,
+                "snippet_score_explanation": "旧版证据片段未记录质量说明。",
+                "quality_flags": ["legacy_snippet"],
+            }
+            for snippet in item.get("snippets") or []
+        ]
+        for evidence_item in evidence_items:
+            scored = score_snippet(
+                str(evidence_item.get("snippet") or ""),
+                section=str(evidence_item.get("section") or "Unknown"),
+                target_terms=[*spec["terms"], theme],
+            )
+            score = float(scored["snippet_score"])
+            if score < 0.12:
+                continue
+            dedup_key = (paper["paper_id"], scored["snippet"].lower())
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            flags = sorted(
+                set(scored["quality_flags"])
+                | set(str(flag) for flag in evidence_item.get("quality_flags") or [])
+            )
+            uncertainty = ""
+            if score < 0.45:
+                uncertainty = "片段质量较低，可能只能作为弱证据或人工复核线索。"
             items.append(
                 {
+                    "theme": theme,
+                    "claim": spec["claim"],
                     "paper_id": paper["paper_id"],
-                    "title": paper.get("title"),
+                    "paper_title": paper.get("title") or paper["paper_id"],
+                    "title": paper.get("title") or paper["paper_id"],
                     "field": field,
                     "source": item.get("source"),
-                    "snippet": snippet,
+                    "snippet": scored["snippet"],
+                    "section": scored["section"],
+                    "snippet_score": score,
+                    "snippet_score_explanation": scored["snippet_score_explanation"],
+                    "confidence": confidence_from_score(score),
+                    "quality_flags": flags,
+                    "uncertainty_or_gap": uncertainty,
                 }
             )
+    items.sort(key=lambda row: float(row.get("snippet_score") or 0.0), reverse=True)
     return items
 
 
 def confidence_for(items: list[dict[str, Any]], supporting_papers: list[str]) -> str:
-    parsed_count = sum(1 for item in items if item.get("source") == "parsed-full-text")
-    if parsed_count >= 3 and len(supporting_papers) >= 2:
+    if not items or not supporting_papers:
+        return "low"
+    high_quality_count = sum(
+        1 for item in items if float(item.get("snippet_score") or 0.0) >= 0.65
+    )
+    medium_quality_count = sum(
+        1 for item in items if float(item.get("snippet_score") or 0.0) >= 0.45
+    )
+    parsed_count = sum(
+        1
+        for item in items
+        if item.get("source") == "parsed-full-text"
+        and float(item.get("snippet_score") or 0.0) >= 0.45
+    )
+    if high_quality_count >= 3 and parsed_count >= 3 and len(supporting_papers) >= 2:
         return "high"
-    if parsed_count or supporting_papers:
+    if medium_quality_count or parsed_count:
         return "medium"
     return "low"
 
@@ -214,20 +260,28 @@ def theme_row(
         evidence = evidences[paper["paper_id"]]
         if not paper_matches_theme(paper, evidence, spec):
             continue
-        supporting.append(paper["paper_id"])
-        snippets.extend(evidence_items_for_theme(paper, evidence, spec))
+        paper_items = evidence_items_for_theme(paper, evidence, spec, theme)
+        if any(float(item.get("snippet_score") or 0.0) >= 0.35 for item in paper_items):
+            supporting.append(paper["paper_id"])
+        snippets.extend(paper_items)
 
+    supporting = list(dict.fromkeys(supporting))
     limited_snippets = snippets[:12]
     gaps: list[str] = []
     if not supporting:
-        gaps.append("No selected paper provided direct evidence for this theme.")
+        gaps.append("当前 selected papers 没有为该主题提供足够直接的高质量证据。")
     if len(supporting) == 1:
-        gaps.append("Only one selected paper supports this theme; broaden search before scaling.")
-    if not any(item.get("source") == "parsed-full-text" for item in limited_snippets):
-        gaps.append("Evidence is metadata/abstract-heavy; inspect parsed Markdown manually.")
+        gaps.append("该主题只有一篇 selected paper 提供支持，扩展前需要人工复核。")
+    if not any(
+        item.get("source") == "parsed-full-text"
+        and float(item.get("snippet_score") or 0.0) >= 0.45
+        for item in limited_snippets
+    ):
+        gaps.append("证据偏 metadata/abstract 或低分片段，需要人工检查 parsed Markdown。")
 
     return {
         "theme": theme,
+        "theme_label": THEME_LABELS_ZH.get(theme, theme),
         "claim": spec["claim"],
         "supporting_papers": supporting,
         "evidence_snippets_or_sections": limited_snippets,
@@ -236,33 +290,47 @@ def theme_row(
     }
 
 
+def markdown_cell(value: Any) -> str:
+    return str(value or "").replace("|", "\\|")
+
+
 def evidence_table_markdown(result: dict[str, Any]) -> str:
     lines = [
-        "# Evidence Table",
+        "# 证据表",
         "",
         f"Workspace: `{result['workspace']}`",
         "",
-        "| Theme | Claim | Supporting Papers | Confidence | Gaps / Uncertainties |",
+        "| 主题 | 综合判断 | 支撑论文 | 置信度 | 缺口或不确定性 |",
         "| --- | --- | --- | --- | --- |",
     ]
     for row in result["themes"]:
         supporting = ", ".join(f"[{paper_id}]" for paper_id in row["supporting_papers"]) or "None"
-        gaps = "; ".join(row["gaps_or_uncertainties"]) or "None"
+        gaps = "; ".join(row["gaps_or_uncertainties"]) or "无"
+        theme_label = f"{row.get('theme_label') or row['theme']}（{row['theme']}）"
         lines.append(
-            f"| {row['theme']} | {row['claim']} | {supporting} | {row['confidence']} | {gaps} |"
+            f"| {markdown_cell(theme_label)} | {markdown_cell(row['claim'])} | "
+            f"{supporting} | {row['confidence']} | {markdown_cell(gaps)} |"
         )
 
-    lines.extend(["", "## Evidence Snippets", ""])
+    lines.extend(["", "## 按主题分组的证据片段", ""])
     for row in result["themes"]:
-        lines.extend([f"### {row['theme']}", ""])
+        lines.extend([f"### {row.get('theme_label') or row['theme']}（{row['theme']}）", ""])
         if row["evidence_snippets_or_sections"]:
             for item in row["evidence_snippets_or_sections"]:
+                flags = ", ".join(item.get("quality_flags") or []) or "none"
                 lines.append(
-                    f"- [{item['paper_id']}] `{item['field']}` ({item['source']}): "
-                    f"{item['snippet']}"
+                    f"- [{item['paper_id']}] `{item['field']}` / section={item.get('section')} / "
+                    f"score={float(item.get('snippet_score') or 0.0):.2f} / "
+                    f"confidence={item.get('confidence')}: {item['snippet']}"
                 )
+                lines.append(
+                    f"  - 质量说明：{item.get('snippet_score_explanation') or 'N/A'}"
+                )
+                lines.append(f"  - 质量标记：{flags}")
+                if item.get("uncertainty_or_gap"):
+                    lines.append(f"  - 不确定性：{item['uncertainty_or_gap']}")
         else:
-            lines.append("- No snippets extracted.")
+            lines.append("- 当前没有抽取到可用证据片段。")
         lines.append("")
     return "\n".join(lines)
 

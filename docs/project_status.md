@@ -22,6 +22,8 @@
 - 本地 `pypdf` 解析可用，适合普通文本 PDF。
 - parsed Markdown notes 可用，笔记能区分元数据/摘要来源和全文解析来源。
 - 证据表可用，输出 `knowledge/evidence_table.md` 和 `knowledge/evidence_table.json`。
+- 证据表开始记录章节、`snippet_score`、质量说明和噪声标记，供 Agent 检查证据质量。
+- `litagent report` 默认生成中文报告草稿，并优先使用高分证据片段。
 - `audit` 和 `inspect-workspace` 可用，可输出质量信号和阶段标签。
 
 ## 当前基线
@@ -44,6 +46,8 @@
 - 笔记来自 parsed Markdown 的数量为 12。
 - 抽象回退（abstract fallback）数量为 0。
 - 证据表已经生成。
+- 证据表当前包含 93 条 evidence snippets，其中 85 条为高质量片段，unknown section
+  比例为 0%，noise section 比例约 1.1%。
 - `audit` 结果为 PASS。
 - `inspect-workspace` 标签为 `small_real_review`。
 
@@ -104,6 +108,8 @@
 - 来源多样性可能不足。
 - 证据片段可能有噪声。
 - 报告深度可能仍接近草稿。
+- 证据表不能只检查“是否存在”，还要检查 `section`、`snippet_score`、
+  `snippet_score_explanation` 和 `quality_flags`。
 - 仍需要 Codex / Agent 人工判断和中文综合。
 
 ### 来源多样真实综述（source_diverse_real_review）
@@ -137,6 +143,9 @@
 ## 下一阶段定义
 
 下一阶段目标是：证据质量增强 + 中文研究级综合 + 来源多样性验证。
+
+当前正在推进第一段：证据质量增强。该阶段不扩大论文规模，不启动
+`./demo-real-v4`，不把 MinerU 改成默认解析路径。
 
 ### 优先级 1：章节感知证据抽取（section-aware evidence extraction）
 

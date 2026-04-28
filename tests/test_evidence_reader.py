@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from litagent.audit import REQUIRED_REPORT_SECTIONS, audit_workspace
 from litagent.evidence import THEME_SPECS, build_evidence_table, paper_matches_theme
+from litagent.evidence_quality import clean_snippet, normalize_section_title, score_snippet
 from litagent.inspect import inspect_workspace
 from litagent.io import read_json, write_json, write_jsonl
 from litagent.knowledge import build_knowledge
@@ -78,18 +79,25 @@ def write_evidence_workspace(workspace: Path, *, with_evidence_report: bool = Fa
         "\n".join(
             [
                 "# AgentReview",
+                "## Introduction",
                 "The problem is that manual literature review is labor-intensive.",
+                "## Method",
                 "We propose a framework with planner agent, collector agent, writer agent, "
                 "and reviewer agent.",
+                "## Pipeline",
                 "The pipeline includes retrieval, screening, outline planning, writing, "
                 "citation checking, and revision stages.",
                 "The retrieval strategy searches candidate papers and reranks them for "
                 "source selection.",
                 "Citation evidence is handled by a citation graph and grounding checks.",
+                "## Evaluation",
                 "The evaluation uses a benchmark dataset, baselines, metrics, and human "
                 "evaluation.",
                 "Results show the system outperforms baselines and improves citation quality.",
+                "## Limitations",
                 "Limitations include hallucination risk and incomplete retrieval coverage.",
+                "## References",
+                "[1] Smith, J. arXiv preprint about unrelated agent references.",
             ]
         ),
         encoding="utf-8",
@@ -130,7 +138,63 @@ def test_read_extracts_parsed_markdown_evidence() -> None:
     assert "## 3. Parsed Full-Text-Derived Evidence" in note
     assert "### Agent Roles" in note
     assert "planner agent" in note
+    assert "(Method, score=" in note
+    assert "score=" in note
     assert metadata["paper_evidence"]["fields"]["agent_roles"]["source"] == "parsed-full-text"
+    item = metadata["paper_evidence"]["fields"]["agent_roles"]["evidence_items"][0]
+    assert item["section"] == "Method"
+    assert item["snippet_score"] >= 0.45
+    assert "snippet_score_explanation" in item
+    assert "quality_flags" in item
+
+
+def test_section_recognition_and_snippet_scoring() -> None:
+    assert normalize_section_title("2. Methodology") == "Method"
+    assert normalize_section_title("## Evaluation") == "Evaluation"
+    assert normalize_section_title("Limitations") == "Limitations"
+    assert normalize_section_title("References") == "References"
+    assert normalize_section_title("Appendix A") == "Appendix"
+
+    method = score_snippet(
+        "We propose a framework with planner agent, collector agent, retrieval stage, "
+        "citation checking, benchmark dataset, metrics, and human evaluation.",
+        section="Method",
+        target_terms=["framework", "agent", "citation"],
+    )
+    reference = score_snippet(
+        "[12] Smith, J. arXiv preprint 2024. https://example.org/paper",
+        section="References",
+        target_terms=["reference"],
+    )
+    unknown = score_snippet(
+        "The system discusses review generation but provides limited implementation detail.",
+        section="Unknown",
+        target_terms=["review generation"],
+    )
+
+    assert method["snippet_score"] > 0.7
+    assert reference["snippet_score"] < 0.35
+    assert unknown["snippet_score"] < method["snippet_score"]
+    assert "加分" in method["snippet_score_explanation"]
+    assert "扣分" in reference["snippet_score_explanation"]
+
+
+def test_snippet_cleaning_marks_noise() -> None:
+    url_clean, url_flags = clean_snippet("https://example.org/a https://example.org/b")
+    ref_clean, ref_flags = clean_snippet("[3] Doe, J. arXiv preprint 2024.")
+    prompt_clean, prompt_flags = clean_snippet("Prompt template: You are a helpful reviewer.")
+    table_clean, table_flags = clean_snippet("Method | Score | Dataset | Metric")
+    short_clean, short_flags = clean_snippet("Too short.")
+    long_clean, long_flags = clean_snippet("word " * 200)
+
+    assert url_clean == ""
+    assert "url_heavy" in url_flags
+    assert "reference_like" in ref_flags
+    assert "code_or_prompt" in prompt_flags
+    assert "table_like" in table_flags
+    assert "too_short" in short_flags
+    assert "too_long" in long_flags
+    assert len(long_clean) <= 700
 
 
 def test_build_evidence_table_generates_json_and_markdown() -> None:
@@ -145,6 +209,11 @@ def test_build_evidence_table_generates_json_and_markdown() -> None:
     themes = {row["theme"]: row for row in result["themes"]}
     assert "multi-agent architecture" in themes
     assert themes["multi-agent architecture"]["supporting_papers"] == ["p-aaaaaaaaaaaa"]
+    snippet = themes["multi-agent architecture"]["evidence_snippets_or_sections"][0]
+    assert snippet["section"] == "Method"
+    assert "snippet_score" in snippet
+    assert "snippet_score_explanation" in snippet
+    assert "quality_flags" in snippet
 
 
 def test_strict_evidence_themes_require_theme_specific_terms() -> None:
@@ -189,10 +258,12 @@ def test_report_uses_evidence_table_claims() -> None:
 
     report = (workspace / "reports" / "final_report.md").read_text(encoding="utf-8")
 
-    assert "## Evidence-Backed Synthesis Themes" in report
-    assert "multi-agent architecture" in report
+    assert "## 证据支撑的主题综合" in report
+    assert "多智能体架构" in report
     assert "[p-aaaaaaaaaaaa]" in report
-    assert "Evidence Table" in report
+    assert "score=" in report
+    assert "arXiv preprint about unrelated agent references" not in report
+    assert "证据表" in report
 
 
 def test_audit_and_inspect_warn_when_evidence_is_missing_or_shallow() -> None:
@@ -207,4 +278,52 @@ def test_audit_and_inspect_warn_when_evidence_is_missing_or_shallow() -> None:
     assert any(
         "Evidence table is missing" in concern
         for concern in inspection["parse_report_audit_quality"]["concerns"]
+    )
+
+
+def test_audit_and_inspect_warn_for_low_quality_evidence() -> None:
+    workspace = workspace_path("low-quality-evidence")
+    write_evidence_workspace(workspace)
+    low_quality_item = {
+        "theme": "citation-aware synthesis",
+        "claim": "低质量测试证据。",
+        "paper_id": "p-aaaaaaaaaaaa",
+        "paper_title": "AgentReview",
+        "field": "citation_or_evidence_handling",
+        "source": "parsed-full-text",
+        "snippet": "[1] Smith, J. arXiv preprint. https://example.org",
+        "section": "References",
+        "snippet_score": 0.05,
+        "snippet_score_explanation": "加分：无；扣分：References 属于噪声章节",
+        "confidence": "low",
+        "quality_flags": ["noise_section", "reference_like"],
+        "uncertainty_or_gap": "片段质量较低。",
+    }
+    write_json(
+        workspace / "knowledge" / "evidence_table.json",
+        {
+            "workspace": str(workspace),
+            "selected_count": 1,
+            "themes": [
+                {
+                    "theme": "citation-aware synthesis",
+                    "claim": "低质量测试证据。",
+                    "supporting_papers": [],
+                    "evidence_snippets_or_sections": [low_quality_item],
+                    "confidence": "low",
+                    "gaps_or_uncertainties": ["证据不足。"],
+                }
+            ],
+        },
+    )
+    (workspace / "knowledge" / "evidence_table.md").write_text("# 证据表\n", encoding="utf-8")
+
+    audit = audit_workspace(workspace)
+    inspection = inspect_workspace(workspace)
+
+    assert audit["passed"] is True
+    assert any("low-score" in warning for warning in audit["warnings"])
+    assert any(
+        "low-score" in warning
+        for warning in inspection["parse_report_audit_quality"]["warnings"]
     )

@@ -37,8 +37,8 @@ def test_mock_run_generates_full_workspace_outputs() -> None:
     assert (workspace / "knowledge" / "topic_map.md").is_file()
     assert (workspace / "knowledge" / "index.md").is_file()
     report = (workspace / "reports" / "final_report.md").read_text(encoding="utf-8")
-    assert "## Executive Summary" in report
-    assert "## References" in report
+    assert "## 执行摘要" in report
+    assert "## 参考文献" in report
     assert report.count("[p-") >= 5
     audit = (workspace / "logs" / "audit_report.md").read_text(encoding="utf-8")
     assert "Status: PASS" in audit

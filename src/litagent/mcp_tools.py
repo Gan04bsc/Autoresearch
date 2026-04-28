@@ -135,7 +135,10 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "litagent_read",
-            "description": "Generate structured paper notes.",
+            "description": (
+                "Generate Chinese-oriented structured paper notes with section-aware evidence "
+                "metadata when parsed Markdown is available."
+            ),
             "inputSchema": {
                 "type": "object",
                 "properties": {"workspace": workspace},
@@ -153,7 +156,10 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "litagent_build_evidence",
-            "description": "Generate knowledge/evidence_table.md and evidence_table.json.",
+            "description": (
+                "Generate section-aware, scored evidence_table.md and evidence_table.json for "
+                "agent inspection."
+            ),
             "inputSchema": {
                 "type": "object",
                 "properties": {"workspace": workspace},
@@ -162,7 +168,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "litagent_report",
-            "description": "Generate reports/final_report.md.",
+            "description": (
+                "Generate a Chinese draft report from notes, knowledge, and scored evidence."
+            ),
             "inputSchema": {
                 "type": "object",
                 "properties": {"workspace": workspace},
@@ -171,7 +179,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "litagent_audit",
-            "description": "Audit workspace completeness and traceability.",
+            "description": (
+                "Audit workspace completeness, traceability, parse quality, and evidence quality."
+            ),
             "inputSchema": {
                 "type": "object",
                 "properties": {"workspace": workspace},
@@ -191,7 +201,8 @@ def tool_definitions() -> list[dict[str, Any]]:
             "name": "litagent_inspect_workspace",
             "description": (
                 "Assess whether a workspace is smoke-test quality or real-review quality, "
-                "including search, selection, parse, report, audit concerns, and next action."
+                "including search, selection, parse, evidence, report, audit concerns, "
+                "and next action."
             ),
             "inputSchema": {
                 "type": "object",

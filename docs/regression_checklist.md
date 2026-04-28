@@ -97,13 +97,19 @@
 - 是否按 theme 分组。
 - 每个 theme 是否有 paper-specific support。
 - 是否记录 confidence 和 gaps_or_uncertainties。
+- 每条证据是否包含 `section`、`snippet_score`、`snippet_score_explanation` 和
+  `quality_flags`。
+- 低质量证据是否被保留为弱证据或复核线索，而不是被误当作强支撑。
 - 是否尽量避免 References、Appendix、prompts、code、tables、layout artifacts 等噪声。
 
 `demo-real-v3` 基线：
 
 - evidence table 已生成。
+- 当前证据质量增强基线：`total_snippets=93`，`high_quality_snippets=85`，
+  `unknown_section_ratio=0%`，`noise_section_ratio≈1.1%`，`low_score_ratio≈2.2%`。
 - 主题包括 multi-agent architecture、survey/literature review generation、systematic review workflow、paper reading agents、citation-aware synthesis、evaluation and benchmarks、limitations and open problems、design implications for litagent。
-- 已知弱点：仍存在 prompts、code、table 和 layout artifacts 噪声片段。
+- 已知弱点：仍可能出现 table、reference-adjacent 或上下文过短片段，但应被
+  `section`、`snippet_score` 和 `quality_flags` 标记为弱证据或复核线索。
 
 ## report
 
@@ -111,6 +117,7 @@
 
 - 是否使用中文输出。
 - 是否 evidence-backed。
+- 是否优先使用高 `snippet_score` 的 evidence snippet。
 - 是否包含 taxonomy、comparison、gaps、roadmap。
 - 是否有论文级引用。
 - 是否避免泛泛而谈。
@@ -120,8 +127,9 @@
 
 - final report 有 12 个唯一 paper_id 引用。
 - report 使用 evidence table 生成证据支撑主题。
-- 质量可接受为 small_real_review，但仍不是中文研究级报告。
-- 已知弱点：deterministic report 仍像英文模板，部分 representative evidence 片段有噪声。
+- `litagent report` 默认生成中文报告草稿，并在正文优先使用高分证据。
+- 质量可接受为 small_real_review，但仍不是最终中文研究级报告。
+- 已知弱点：仍可能出现泛化表述，需要 Codex / Agent 复核 paper-specific support。
 
 ## audit / inspect
 
@@ -130,6 +138,7 @@
 - `audit PASS` 是否仍不足以代表成功。
 - `inspect-workspace` label 是否合理。
 - 是否能发现 shallow report、weak evidence、source imbalance、parse failure、abstract fallback。
+- 是否能提示 unknown section 比例过高、低分 evidence 比例过高、References/Appendix 等噪声片段过多。
 - 是否报告 selected count、downloaded PDF count、parsed Markdown count、parse success rate 和 note source counts。
 
 `demo-real-v3` 基线：

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
+from litagent.evidence_quality import confidence_from_score, score_snippet, sectioned_units
 from litagent.io import read_jsonl, write_json, write_jsonl
 from litagent.schema import format_short_citation, normalize_paper
 
@@ -205,60 +205,42 @@ def metadata_block(paper: dict[str, Any]) -> str:
     return json.dumps(paper, ensure_ascii=False, indent=2, sort_keys=True)
 
 
-def normalize_evidence_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text.replace("\x00", " ")).strip()
-
-
-def candidate_units(text: str) -> list[str]:
-    units: list[str] = []
-    for raw_line in text.splitlines():
-        line = normalize_evidence_text(raw_line)
-        if not line:
-            continue
-        if len(line) <= 700:
-            units.append(line)
-        else:
-            units.extend(
-                normalize_evidence_text(part)
-                for part in re.split(r"(?<=[.!?])\s+", line)
-                if normalize_evidence_text(part)
-            )
-    return units
-
-
-def is_probably_reference(unit: str) -> bool:
-    lower = unit.lower()
-    return (
-        lower.startswith("references")
-        or lower.startswith("bibliography")
-        or bool(re.match(r"^\[\d+\]", unit))
-        or ("arxiv preprint" in lower and len(unit) < 240)
-    )
-
-
-def extract_matching_snippets(text: str, terms: list[str], *, limit: int = 3) -> list[str]:
-    snippets: list[str] = []
+def extract_matching_evidence_items(
+    text: str,
+    terms: list[str],
+    *,
+    limit: int = 3,
+    default_section: str | None = None,
+) -> list[dict[str, Any]]:
+    items: list[tuple[float, int, dict[str, Any]]] = []
     seen: set[str] = set()
     lower_terms = [term.lower() for term in terms]
-    for unit in candidate_units(text):
-        clean = normalize_evidence_text(unit)
+    for unit in sectioned_units(text):
+        section = unit["section"]
+        if section == "Unknown" and default_section:
+            section = default_section
+        scored = score_snippet(unit["text"], section=section, target_terms=terms)
+        clean = scored["snippet"]
         lower = clean.lower()
-        if len(clean) < 45 or is_probably_reference(clean):
+        if not clean or scored["snippet_score"] < 0.15:
             continue
-        if not any(term in lower for term in lower_terms):
+        matched_count = sum(1 for term in lower_terms if term in lower)
+        if matched_count == 0:
             continue
-        score = sum(1 for term in lower_terms if term in lower)
-        prefix = ""
-        if re.match(r"^(#+\s+|\d+(\.\d+)*\s+|[A-Z][A-Za-z /-]{3,60}$)", clean):
-            prefix = "Section: "
-        snippet = f"{prefix}{clean[:500]}"
-        key = snippet.lower()
+        key = clean.lower()
         if key in seen:
             continue
         seen.add(key)
-        snippets.append((score, snippet))
-    snippets.sort(key=lambda item: (item[0], len(item[1])), reverse=True)
-    return [snippet for _, snippet in snippets[:limit]]
+        items.append((float(scored["snippet_score"]), matched_count, scored))
+    items.sort(key=lambda item: (item[0], item[1], len(item[2]["snippet"])), reverse=True)
+    return [item for _, _, item in items[:limit]]
+
+
+def extract_matching_snippets(text: str, terms: list[str], *, limit: int = 3) -> list[str]:
+    return [
+        item["snippet"]
+        for item in extract_matching_evidence_items(text, terms, limit=limit)
+    ]
 
 
 def field_from_sources(
@@ -270,29 +252,40 @@ def field_from_sources(
 ) -> dict[str, Any]:
     spec = EVIDENCE_FIELDS[field]
     full_text_available = bool(text.strip()) and not text_source.startswith("abstract")
-    full_text_snippets = (
-        extract_matching_snippets(text, spec["terms"], limit=3) if full_text_available else []
+    full_text_items = (
+        extract_matching_evidence_items(text, spec["terms"], limit=3)
+        if full_text_available
+        else []
     )
-    if full_text_snippets:
+    if full_text_items:
+        best_score = max(float(item["snippet_score"]) for item in full_text_items)
         return {
             "title": spec["title"],
             "source": "parsed-full-text",
-            "snippets": full_text_snippets,
-            "confidence": "medium" if len(full_text_snippets) == 1 else "high",
+            "snippets": [item["snippet"] for item in full_text_items],
+            "evidence_items": full_text_items,
+            "confidence": confidence_from_score(best_score),
         }
 
-    abstract_snippets = extract_matching_snippets(abstract, spec["terms"], limit=1)
-    if abstract_snippets:
+    abstract_items = extract_matching_evidence_items(
+        abstract,
+        spec["terms"],
+        limit=1,
+        default_section="Abstract",
+    )
+    if abstract_items:
         return {
             "title": spec["title"],
             "source": "metadata/abstract",
-            "snippets": abstract_snippets,
+            "snippets": [item["snippet"] for item in abstract_items],
+            "evidence_items": abstract_items,
             "confidence": "low",
         }
     return {
         "title": spec["title"],
         "source": "missing",
         "snippets": [],
+        "evidence_items": [],
         "confidence": "unknown",
     }
 
@@ -328,8 +321,29 @@ def note_field_lines(evidence: dict[str, Any], *, source: str) -> list[str]:
         lines.append("")
         lines.append(f"- Source: {item['source']}")
         lines.append(f"- Confidence: {item['confidence']}")
-        for snippet in item["snippets"]:
-            lines.append(f"- Evidence: {snippet}")
+        evidence_items = item.get("evidence_items") or [
+            {
+                "snippet": snippet,
+                "section": "Unknown",
+                "snippet_score": 0.0,
+                "snippet_score_explanation": "旧版证据片段未记录质量说明。",
+                "quality_flags": ["legacy_snippet"],
+            }
+            for snippet in item.get("snippets") or []
+        ]
+        for evidence_item in evidence_items:
+            lines.append(
+                "- Evidence "
+                f"({evidence_item.get('section', 'Unknown')}, "
+                f"score={float(evidence_item.get('snippet_score') or 0.0):.2f}): "
+                f"{evidence_item.get('snippet')}"
+            )
+            flags = ", ".join(evidence_item.get("quality_flags") or []) or "none"
+            lines.append(f"- Quality flags: {flags}")
+            lines.append(
+                "- Score explanation: "
+                f"{evidence_item.get('snippet_score_explanation') or 'N/A'}"
+            )
         lines.append("")
     return lines
 
