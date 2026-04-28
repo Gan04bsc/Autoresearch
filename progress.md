@@ -189,6 +189,12 @@
   `key_present=true`, `auth_mode=authorization_bearer`, and the configured custom proxy base URL;
   this indicates the next step is checking the key/proxy permission or auth/path expectations
   outside the literature-review pipeline.
+- Switched the local ignored `.env` from the failed proxy configuration to the official Semantic
+  Scholar API configuration: `base_url=https://api.semanticscholar.org` and
+  `auth_mode=x-api-key`. The real API key remains local-only and is not tracked.
+- Re-ran `litagent provider-smoke semantic-scholar --json` against the official endpoint; it
+  succeeded with HTTP 200, `key_present=true`, and one returned sample result, so Semantic Scholar
+  provider connectivity is now ready for a controlled v4 retry.
 
 ## Validation
 
@@ -281,6 +287,8 @@
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after provider smoke diagnostics.
 - Ran: `litagent provider-smoke semantic-scholar --json`; it safely reported HTTP 403 without
   printing the real API key.
+- Ran: `litagent provider-smoke semantic-scholar --json` after switching to the official Semantic
+  Scholar API configuration; it safely reported HTTP 200 without printing the real API key.
 
 ## Known Issues
 
