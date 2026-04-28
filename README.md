@@ -259,10 +259,19 @@ wiki-vault/
       evidence.json
   kb/
     index.md
+    source-index.md
+    evidence-index.md
     field-map.md
     reading-plan.md
     technical-frontier.md
     innovation-opportunities.md
+    sources/
+      <paper_id>.md
+    notes/
+      note-<paper_id>.md
+    evidence/
+      evidence-<paper_id>.md
+      <theme>.md
     topics/
     systems/
     benchmarks/
@@ -274,6 +283,10 @@ wiki-vault/
 导出时会按 `paper_role` 路由论文：综述进入领域地图，技术/系统论文进入技术前沿和方法矩阵，
 benchmark/dataset 进入 benchmark 矩阵，背景和观点论文只作为语境。Wiki 页面使用 Obsidian
 wikilinks，例如 `[[survey-generation]]` 和 `[[citation-aware-synthesis]]`。
+
+打开 Obsidian 时应打开导出的 vault 根目录，并从 `START_HERE.md` 开始。`kb/sources/`
+是面向阅读的论文速读页，`kb/notes/` 是完整阅读笔记，`kb/evidence/` 是 Markdown 化证据。
+`raw/` 只是归档层，不建议从那里开始看。
 
 ## MinerU PDF Parsing
 

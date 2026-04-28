@@ -229,6 +229,14 @@
 - Added AutoWiki-compatible vault pages under `raw/<paper_id>/` and `kb/`, with Obsidian wikilinks,
   paper role routing, source metadata, evidence JSON, field map, technical frontier, method matrix,
   benchmark matrix, innovation opportunities, and reading plan.
+- Improved the AutoWiki-compatible export after Obsidian usability review: vaults now include
+  `START_HERE.md`, `kb/source-index.md`, `kb/evidence-index.md`, visible `kb/sources/<paper_id>.md`
+  article quick-read pages, `kb/notes/note-<paper_id>.md` full notes, and
+  `kb/evidence/evidence-<paper_id>.md` Markdown evidence pages. `raw/` is now clearly treated as an
+  archive layer rather than the primary reading surface.
+- Generated an improved non-hidden Obsidian vault at `workspace/wiki-vault-v4` from existing
+  `./demo-real-v4` artifacts. This vault has visible maps, source summaries, full notes, and
+  Markdown evidence pages, and should be opened from `START_HERE.md`.
 - Updated `audit` and `inspect-workspace` to emit research-workspace quality signals for missing
   field maps, technical frontier pages, matrices, innovation opportunities, reading plans, role
   distributions, technical/system paper coverage, survey dominance, and background/application
@@ -338,6 +346,12 @@
   research-workspace repositioning and AutoWiki-compatible export.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after research-workspace
   repositioning and AutoWiki-compatible export.
+- Passed: `litagent export-wiki ./demo-real-v4 --format autowiki --out workspace/wiki-vault-v4 --json`
+  after Obsidian usability fixes.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 56 tests after
+  Obsidian-friendly vault export fixes.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after Obsidian-friendly vault
+  export fixes.
 
 ## Known Issues
 

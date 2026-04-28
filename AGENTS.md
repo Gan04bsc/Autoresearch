@@ -193,5 +193,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 真实文献工作台必须使用：
   `read -> build-knowledge -> build-evidence -> audit -> inspect-workspace`。
 - 需要长期知识库时使用 `export-wiki`；需要展示草稿时再运行 `report`。
+- Obsidian 打开导出 vault 时应从 `START_HERE.md` 开始；`kb/sources/` 是论文速读页，
+  `kb/notes/` 是完整 notes，`kb/evidence/` 是 Markdown evidence。`raw/` 只是归档层。
 - `progress.md` 必须更新。
 - 每次完成一次项目更新后提交版本。

@@ -84,6 +84,42 @@ def read_evidence_by_paper(workspace: Path) -> dict[str, list[dict[str, Any]]]:
     return dict(grouped)
 
 
+def read_evidence_by_theme(workspace: Path) -> dict[str, list[dict[str, Any]]]:
+    evidence_path = workspace / "knowledge" / "evidence_table.json"
+    evidence = read_json(evidence_path, default={}) or {}
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for theme in evidence.get("themes") or []:
+        theme_name = str(theme.get("theme") or "unknown")
+        for item in theme.get("evidence_snippets_or_sections") or []:
+            if item.get("paper_id"):
+                grouped[theme_name].append({**item, "theme": theme_name})
+    for snippets in grouped.values():
+        snippets.sort(key=lambda item: float(item.get("snippet_score") or 0.0), reverse=True)
+    return dict(grouped)
+
+
+def read_paper_evidence_fields(workspace: Path, paper_id: str) -> dict[str, Any]:
+    metadata = read_json(workspace / "library" / "metadata" / f"{paper_id}.json", default={}) or {}
+    paper_evidence = metadata.get("paper_evidence") or {}
+    fields = paper_evidence.get("fields") or {}
+    return fields if isinstance(fields, dict) else {}
+
+
+def best_field_snippet(fields: dict[str, Any], field_name: str) -> str:
+    field = fields.get(field_name) or {}
+    evidence_items = field.get("evidence_items") or []
+    if not evidence_items:
+        snippets = field.get("snippets") or []
+        if snippets:
+            return escape_markdown_table(str(snippets[0]), 220)
+        return "未在当前解析文本中稳定抽取。"
+    best = max(evidence_items, key=lambda item: float(item.get("snippet_score") or 0.0))
+    section = best.get("section") or "Unknown"
+    score = float(best.get("snippet_score") or 0.0)
+    snippet = escape_markdown_table(str(best.get("snippet") or ""), 220)
+    return f"{snippet}（section={section}, score={score:.2f}）"
+
+
 def chinese_paper_summary(paper: dict[str, Any]) -> str:
     role = paper.get("paper_role") or "background_foundation"
     abstract = re.sub(r"\s+", " ", str(paper.get("abstract") or "")).strip()
@@ -176,6 +212,141 @@ def source_page_content(
     return "\n".join([*frontmatter, *body])
 
 
+def source_summary_page_content(
+    workspace: Path, paper: dict[str, Any], evidence_items: list[dict[str, Any]]
+) -> str:
+    paper_id = paper["paper_id"]
+    fields = read_paper_evidence_fields(workspace, paper_id)
+    role = paper.get("paper_role") or "background_foundation"
+    intents = paper.get("reading_intent") or []
+    sources = ", ".join(paper.get("source") or []) or "unknown"
+    top_evidence = []
+    for item in evidence_items[:5]:
+        theme_slug = clean_filename(str(item.get("theme") or "evidence"))
+        score = float(item.get("snippet_score") or 0.0)
+        top_evidence.append(
+            f"- {wikilink(theme_slug)} / [[evidence-{paper_id}]]: "
+            f"{escape_markdown_table(str(item.get('snippet') or ''), 200)} "
+            f"（section={item.get('section') or 'Unknown'}, score={score:.2f}）"
+        )
+    if not top_evidence:
+        top_evidence.append("- 当前没有可用 evidence snippet。")
+
+    lines = [
+        "---",
+        f"paper_id: {paper_id}",
+        f"paper_role: {role}",
+        "reading_intent:",
+        *[f"  - {intent}" for intent in intents],
+        f"year: {paper.get('year') or ''}",
+        f"source: {sources}",
+        "tags:",
+        f"  - paper-role/{role}",
+        "---",
+        "",
+        f"# {paper.get('title') or paper_id}",
+        "",
+        f"- Paper ID: `{paper_id}`",
+        f"- 年份: {paper.get('year') or 'n.d.'}",
+        f"- 来源: {sources}",
+        f"- 论文角色: `{role}`（{ROLE_LABELS.get(role, role)}）",
+        f"- 阅读意图: {', '.join(intents) or '待判断'}",
+        f"- 完整阅读笔记: [[note-{paper_id}]]",
+        f"- 证据页: [[evidence-{paper_id}]]",
+        f"- 原始归档: [raw/{paper_id}/source.md](../../raw/{paper_id}/source.md)",
+        "",
+        "## 可靠速读",
+        "",
+        f"- 为什么读：{ROLE_LABELS.get(role, role)}；用于 {', '.join(intents) or '待判断'}。",
+        f"- 解决的问题：{best_field_snippet(fields, 'problem_addressed')}",
+        f"- 方法 / 系统：{best_field_snippet(fields, 'proposed_system_or_method')}",
+        f"- Agent 分工：{best_field_snippet(fields, 'agent_roles')}",
+        f"- 流程阶段：{best_field_snippet(fields, 'pipeline_stages')}",
+        f"- 检索策略：{best_field_snippet(fields, 'retrieval_search_strategy')}",
+        f"- 证据 / 引用处理：{best_field_snippet(fields, 'citation_or_evidence_handling')}",
+        f"- 评估设置：{best_field_snippet(fields, 'evaluation_setup')}",
+        f"- 数据集 / benchmark：{best_field_snippet(fields, 'datasets_or_benchmarks')}",
+        f"- 主要发现：{best_field_snippet(fields, 'key_findings')}",
+        f"- 局限：{best_field_snippet(fields, 'limitations')}",
+        "- 对 litagent 的价值："
+        f"{best_field_snippet(fields, 'relevance_to_multi_agent_literature_review_automation')}",
+        "",
+        "## 摘要式中文说明",
+        "",
+        chinese_paper_summary(paper),
+        "",
+        "## 高分证据",
+        "",
+        *top_evidence,
+        "",
+        "## 相关主题",
+        "",
+        f"- {topic_links()}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def note_page_content(workspace: Path, paper: dict[str, Any]) -> str:
+    paper_id = paper["paper_id"]
+    note_path = workspace / "library" / "notes" / f"{paper_id}.md"
+    if note_path.exists():
+        note_text = note_path.read_text(encoding="utf-8")
+    else:
+        note_text = "当前 workspace 中没有生成阅读笔记。"
+    return "\n".join(
+        [
+            "---",
+            f"paper_id: {paper_id}",
+            "kind: reading_note",
+            "---",
+            "",
+            f"# note-{paper_id}",
+            "",
+            f"- 来源论文: [[{paper_id}]]",
+            f"- 证据页: [[evidence-{paper_id}]]",
+            "",
+            "## 原始阅读笔记",
+            "",
+            note_text,
+            "",
+        ]
+    )
+
+
+def evidence_page_content(paper: dict[str, Any], evidence_items: list[dict[str, Any]]) -> str:
+    paper_id = paper["paper_id"]
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in evidence_items:
+        grouped[str(item.get("theme") or "unknown")].append(item)
+    lines = [
+        "---",
+        f"paper_id: {paper_id}",
+        "kind: paper_evidence",
+        "---",
+        "",
+        f"# evidence-{paper_id}",
+        "",
+        f"- 来源论文: [[{paper_id}]]",
+        f"- 阅读笔记: [[note-{paper_id}]]",
+        "",
+    ]
+    if not grouped:
+        lines.extend(["## 证据", "", "- 当前没有可用 evidence snippet。", ""])
+        return "\n".join(lines)
+    for theme, snippets in sorted(grouped.items()):
+        lines.extend([f"## {theme}", ""])
+        for item in snippets[:8]:
+            score = float(item.get("snippet_score") or 0.0)
+            flags = ", ".join(str(flag) for flag in item.get("quality_flags") or []) or "none"
+            lines.append(
+                f"- section={item.get('section') or 'Unknown'}，score={score:.2f}，"
+                f"flags={flags}: {escape_markdown_table(str(item.get('snippet') or ''), 260)}"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
 def write_raw_paper_pages(
     workspace: Path,
     out_dir: Path,
@@ -194,6 +365,31 @@ def write_raw_paper_pages(
         write_json(paper_dir / "evidence.json", strip_secret_fields(evidence_items))
 
 
+def write_visible_paper_pages(
+    workspace: Path,
+    out_dir: Path,
+    papers: list[dict[str, Any]],
+    evidence_by_paper: dict[str, list[dict[str, Any]]],
+) -> None:
+    for relative in ("kb/sources", "kb/notes", "kb/evidence"):
+        (out_dir / relative).mkdir(parents=True, exist_ok=True)
+    for paper in papers:
+        paper_id = paper["paper_id"]
+        evidence_items = evidence_by_paper.get(paper_id, [])
+        (out_dir / "kb" / "sources" / f"{paper_id}.md").write_text(
+            source_summary_page_content(workspace, paper, evidence_items),
+            encoding="utf-8",
+        )
+        (out_dir / "kb" / "notes" / f"note-{paper_id}.md").write_text(
+            note_page_content(workspace, paper),
+            encoding="utf-8",
+        )
+        (out_dir / "kb" / "evidence" / f"evidence-{paper_id}.md").write_text(
+            evidence_page_content(paper, evidence_items),
+            encoding="utf-8",
+        )
+
+
 def role_groups(papers: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for paper in papers:
@@ -202,7 +398,7 @@ def role_groups(papers: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]
 
 
 def paper_link(paper: dict[str, Any]) -> str:
-    return f"[{paper['paper_id']}](../../raw/{paper['paper_id']}/source.md)"
+    return wikilink(paper["paper_id"])
 
 
 def write_index(out_dir: Path, papers: list[dict[str, Any]]) -> None:
@@ -216,12 +412,15 @@ def write_index(out_dir: Path, papers: list[dict[str, Any]]) -> None:
         "",
         "## 关键页面",
         "",
+        "- [[START_HERE]]",
         "- [[field-map]]",
         "- [[technical-frontier]]",
         "- [[method-matrix]]",
         "- [[benchmark-matrix]]",
         "- [[innovation-opportunities]]",
         "- [[reading-plan]]",
+        "- [[source-index]]",
+        "- [[evidence-index]]",
         "",
         "## 主题入口",
         "",
@@ -239,6 +438,95 @@ def write_index(out_dir: Path, papers: list[dict[str, Any]]) -> None:
         "",
     ]
     (out_dir / "kb" / "index.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_start_here(out_dir: Path) -> None:
+    lines = [
+        "# START_HERE",
+        "",
+        "这是 Obsidian 入口页。打开 vault 后建议从这里开始，而不是直接看 raw 文件夹。",
+        "",
+        "## 先看地图",
+        "",
+        "- [[field-map]]：领域地图",
+        "- [[technical-frontier]]：技术前沿",
+        "- [[method-matrix]]：系统/方法横向比较",
+        "- [[benchmark-matrix]]：评估资源",
+        "- [[innovation-opportunities]]：创新机会",
+        "- [[reading-plan]]：阅读路径",
+        "",
+        "## 再看论文",
+        "",
+        "- [[source-index]]：论文速读页索引",
+        "- [[evidence-index]]：证据页索引",
+        "",
+        "## 使用提醒",
+        "",
+        "- `kb/sources/` 是面向阅读的论文速读页。",
+        "- `kb/notes/` 是从 litagent notes 导出的完整阅读笔记。",
+        "- `kb/evidence/` 是 Markdown 化的证据页。",
+        "- `raw/` 是归档层，优先不要从那里开始读。",
+        "",
+    ]
+    (out_dir / "START_HERE.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_source_index(out_dir: Path, papers: list[dict[str, Any]]) -> None:
+    grouped = role_groups(papers)
+    lines = ["# 论文速读索引", ""]
+    for role, group in sorted(grouped.items()):
+        lines.extend([f"## {ROLE_LABELS.get(role, role)}", ""])
+        for paper in group:
+            lines.append(f"- {paper_link(paper)} {paper.get('title')}")
+        lines.append("")
+    (out_dir / "kb" / "source-index.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_evidence_index(
+    out_dir: Path,
+    papers: list[dict[str, Any]],
+    evidence_by_theme: dict[str, list[dict[str, Any]]],
+) -> None:
+    lines = [
+        "# 证据索引",
+        "",
+        "本页把 JSON evidence 转成 Obsidian 可读的 Markdown 入口。",
+        "",
+        "## 按论文查看",
+        "",
+    ]
+    for paper in papers:
+        lines.append(f"- [[evidence-{paper['paper_id']}]] ← {paper_link(paper)}")
+    lines.extend(["", "## 按主题查看", ""])
+    for theme in sorted(evidence_by_theme):
+        lines.append(f"- [[{clean_filename(theme)}]]")
+    lines.append("")
+    (out_dir / "kb" / "evidence-index.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_theme_evidence_pages(
+    out_dir: Path, evidence_by_theme: dict[str, list[dict[str, Any]]]
+) -> None:
+    for theme, snippets in evidence_by_theme.items():
+        lines = [
+            f"# {theme}",
+            "",
+            "该页按主题汇总 evidence snippets。低分片段只作为复核线索，不应作为强证据。",
+            "",
+        ]
+        for item in snippets[:20]:
+            paper_id = str(item.get("paper_id") or "")
+            score = float(item.get("snippet_score") or 0.0)
+            lines.append(
+                f"- {wikilink(paper_id)} / [[evidence-{paper_id}]]，"
+                f"section={item.get('section') or 'Unknown'}，score={score:.2f}: "
+                f"{escape_markdown_table(str(item.get('snippet') or ''), 260)}"
+            )
+        lines.append("")
+        (out_dir / "kb" / "evidence" / f"{clean_filename(theme)}.md").write_text(
+            "\n".join(lines),
+            encoding="utf-8",
+        )
 
 
 def write_field_map(out_dir: Path, grouped: dict[str, list[dict[str, Any]]]) -> None:
@@ -482,17 +770,30 @@ def write_kb_pages(
     out_dir: Path,
     papers: list[dict[str, Any]],
     evidence_by_paper: dict[str, list[dict[str, Any]]],
+    evidence_by_theme: dict[str, list[dict[str, Any]]],
 ) -> None:
-    for relative in ("kb/topics", "kb/systems", "kb/benchmarks", "kb/matrices"):
+    for relative in (
+        "kb/topics",
+        "kb/systems",
+        "kb/benchmarks",
+        "kb/matrices",
+        "kb/sources",
+        "kb/notes",
+        "kb/evidence",
+    ):
         (out_dir / relative).mkdir(parents=True, exist_ok=True)
     grouped = role_groups(papers)
+    write_start_here(out_dir)
     write_index(out_dir, papers)
+    write_source_index(out_dir, papers)
+    write_evidence_index(out_dir, papers, evidence_by_theme)
     write_field_map(out_dir, grouped)
     write_technical_frontier(out_dir, grouped)
     write_method_matrix(out_dir, grouped)
     write_benchmark_matrix(out_dir, grouped)
     write_innovation_opportunities(out_dir, grouped, evidence_by_paper)
     write_reading_plan(out_dir, grouped)
+    write_theme_evidence_pages(out_dir, evidence_by_theme)
     write_topic_system_benchmark_pages(out_dir, grouped)
 
 
@@ -508,8 +809,10 @@ def export_wiki(
         for paper in read_jsonl(workspace / "data" / "selected_papers.jsonl")
     ]
     evidence_by_paper = read_evidence_by_paper(workspace)
+    evidence_by_theme = read_evidence_by_theme(workspace)
     write_raw_paper_pages(workspace, out_dir, papers, evidence_by_paper)
-    write_kb_pages(out_dir, papers, evidence_by_paper)
+    write_visible_paper_pages(workspace, out_dir, papers, evidence_by_paper)
+    write_kb_pages(out_dir, papers, evidence_by_paper, evidence_by_theme)
     role_distribution = dict(sorted(Counter(paper["paper_role"] for paper in papers).items()))
     result = {
         "ok": True,
@@ -519,7 +822,10 @@ def export_wiki(
         "paper_count": len(papers),
         "role_distribution": role_distribution,
         "generated_files": [
+            "START_HERE.md",
             "kb/index.md",
+            "kb/source-index.md",
+            "kb/evidence-index.md",
             "kb/field-map.md",
             "kb/technical-frontier.md",
             "kb/matrices/method-matrix.md",

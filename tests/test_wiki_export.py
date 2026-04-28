@@ -104,14 +104,21 @@ def test_export_wiki_creates_autowiki_vault_without_network(monkeypatch) -> None
     assert (out_dir / "raw" / "p-system000001" / "source.md").is_file()
     assert (out_dir / "raw" / "p-system000001" / "metadata.json").is_file()
     assert (out_dir / "raw" / "p-system000001" / "evidence.json").is_file()
+    assert (out_dir / "START_HERE.md").is_file()
     assert (out_dir / "kb" / "index.md").is_file()
+    assert (out_dir / "kb" / "source-index.md").is_file()
+    assert (out_dir / "kb" / "evidence-index.md").is_file()
+    assert (out_dir / "kb" / "sources" / "p-system000001.md").is_file()
+    assert (out_dir / "kb" / "notes" / "note-p-system000001.md").is_file()
+    assert (out_dir / "kb" / "evidence" / "evidence-p-system000001.md").is_file()
     assert (out_dir / "kb" / "field-map.md").is_file()
     assert (out_dir / "kb" / "technical-frontier.md").is_file()
     assert (out_dir / "kb" / "matrices" / "method-matrix.md").is_file()
     assert (out_dir / "kb" / "matrices" / "benchmark-matrix.md").is_file()
 
-    source = (out_dir / "raw" / "p-system000001" / "source.md").read_text(encoding="utf-8")
+    source = (out_dir / "kb" / "sources" / "p-system000001.md").read_text(encoding="utf-8")
     index = (out_dir / "kb" / "index.md").read_text(encoding="utf-8")
+    evidence_index = (out_dir / "kb" / "evidence-index.md").read_text(encoding="utf-8")
     method_matrix = (out_dir / "kb" / "matrices" / "method-matrix.md").read_text(
         encoding="utf-8"
     )
@@ -119,7 +126,12 @@ def test_export_wiki_creates_autowiki_vault_without_network(monkeypatch) -> None
 
     assert "p-system000001" in source
     assert "[[citation-aware-synthesis]]" in source
+    assert "[[note-p-system000001]]" in source
+    assert "[[evidence-p-system000001]]" in source
+    assert "可靠速读" in source
     assert "[[field-map]]" in index
+    assert "[[source-index]]" in index
+    assert "[[evidence-p-system000001]]" in evidence_index
     assert "p-system000001" in method_matrix
     assert metadata["paper_role"] == "system_paper"
     assert "track_frontier" in metadata["reading_intent"]
