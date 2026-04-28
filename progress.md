@@ -352,6 +352,14 @@
   Obsidian-friendly vault export fixes.
 - Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after Obsidian-friendly vault
   export fixes.
+- Synced `/app/AutoWiki-skill/skills/autowiki/` into the Codex `autowiki` skill directory and
+  recompiled `./demo-real-v4` into an AutoWiki-style vault at `/app/workspace/autowiki-v4`.
+- The new vault is not the deterministic `export-wiki` template output. It uses Codex/AutoWiki
+  synthesis to create milestone topics, source analysis pages, Relations, Critical Analysis,
+  evidence pages, notes, and an innovation roadmap.
+- Added an Obsidian entry point for the new vault: `/app/workspace/autowiki-v4/START_HERE.md`.
+- Added a notice in the older `/app/workspace/wiki-vault-v4` template export telling readers to
+  use `/app/workspace/autowiki-v4` for the AutoWiki-style knowledge map.
 
 ## Known Issues
 
@@ -387,8 +395,10 @@ Do not expand to larger real reviews yet. Next work should focus on research wor
 2. Use `./demo-real-v4` as the source-diversity regression baseline.
 3. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
    real Obsidian/AutoWiki maintenance workflow.
-4. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
+4. Treat `litagent export-wiki` as artifact packaging only; use Codex/AutoWiki skill for actual
+   milestone/topic/source synthesis.
+5. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
    further optimizing `final_report.md`.
-5. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
+6. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
    download, parse, or evidence extraction.
 

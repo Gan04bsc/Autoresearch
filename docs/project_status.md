@@ -303,6 +303,13 @@
 - 不让 AutoWiki-skill 接管 search/download/parse。
 - 让 AutoWiki 或 Obsidian 负责长期知识库组织、链接和复用。
 - 保留 `litagent` 作为检索、筛选、解析和证据抽取层。
+- 明确 `export-wiki` 只是 artifact 打包层，不等于 AutoWiki 级别的知识编译。
+- Codex / Agent 必须使用 `autowiki` skill 对 source、note 和 evidence 做二次组织，形成
+  里程碑主题、source 深度分析、Relations、Critical Analysis、阅读路径和创新路线。
+
+当前 `./demo-real-v4` 的推荐 AutoWiki 风格 vault 是 `/app/workspace/autowiki-v4`，
+入口为 `START_HERE.md`。旧的 `/app/workspace/wiki-vault-v4` 是模板式导出验证，不应作为
+主要阅读界面。
 
 ## demo-real-v4 来源多样性基线
 

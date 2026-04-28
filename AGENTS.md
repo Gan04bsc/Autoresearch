@@ -106,10 +106,13 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
     `knowledge/innovation_opportunities.md` 和 `knowledge/reading_plan.md`。
 17. 如需长期知识库管理，运行
     `litagent export-wiki WORKSPACE --format autowiki --out OUT_DIR`。
-18. 如需展示型中文草稿，再运行 `report`。报告不是默认终点。
-19. 运行 `audit`。
-20. 运行 `inspect-workspace`。
-21. 如果 `audit PASS` 但工作台知识页缺失、证据表弱、解析失败、来源失衡、候选论文偏题
+18. 如需 AutoWiki/Obsidian 知识库，不要只接受 `export-wiki` 的模板式结果。Codex / Agent
+    必须使用 `autowiki` skill 检查 source、note 和 evidence，并二次编译主题页、source
+    深度分析、Relations、Critical Analysis、阅读路径和创新路线。
+19. 如需展示型中文草稿，再运行 `report`。报告不是默认终点。
+20. 运行 `audit`。
+21. 运行 `inspect-workspace`。
+22. 如果 `audit PASS` 但工作台知识页缺失、证据表弱、解析失败、来源失衡、候选论文偏题
     或报告浅薄，必须继续修正。
 
 ## 论文角色和阅读意图
@@ -195,5 +198,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 需要长期知识库时使用 `export-wiki`；需要展示草稿时再运行 `report`。
 - Obsidian 打开导出 vault 时应从 `START_HERE.md` 开始；`kb/sources/` 是论文速读页，
   `kb/notes/` 是完整 notes，`kb/evidence/` 是 Markdown evidence。`raw/` 只是归档层。
+- `litagent export-wiki` 只是 artifact 打包层；真正像 AutoWiki 的地图、Relations、
+  source 深度分析和创新路线必须由 Codex / Agent 使用 `autowiki` skill 二次编译。
 - `progress.md` 必须更新。
 - 每次完成一次项目更新后提交版本。

@@ -247,6 +247,18 @@ inspect these fields before accepting the report.
 AutoWiki-compatible Markdown + JSON vault。该命令不调用网络、不重新下载 PDF、不重新解析 PDF，
 只读取已有的 `selected_papers.jsonl`、notes、`knowledge/evidence_table.*` 等产物。
 
+需要特别区分两层能力：
+
+- `litagent export-wiki` 是确定性 artifact 打包层，负责把 source、note、evidence、
+  metadata 和索引整理成 Obsidian 可打开的 Markdown/JSON。
+- AutoWiki 风格知识编译必须由 Codex / Agent 使用 `autowiki` skill 二次完成，负责把论文
+  组织成里程碑主题、source 深度分析、Relations、Critical Analysis、创新路线和阅读路径。
+
+因此，`export-wiki` 产物不应被误认为已经完成 AutoWiki 级别的知识综合。高质量 vault 应当
+先由 `litagent` 准备证据和笔记，再由 Codex / Agent 按 AutoWiki 结构编译。当前
+`./demo-real-v4` 的推荐阅读 vault 是 `/app/workspace/autowiki-v4`，入口是
+`START_HERE.md`；旧的 `/app/workspace/wiki-vault-v4` 只是模板式导出验证。
+
 导出结构：
 
 ```text
