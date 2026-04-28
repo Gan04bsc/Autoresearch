@@ -1,0 +1,189 @@
+# 项目阶段状态
+
+## 项目愿景
+
+`litagent` 面向“多智能体文献综述自动化工具”这一方向，目标是构建一个可追溯、可检查、可迭代的文献研究工作台。
+
+项目采用清晰的职责分工：
+
+- Codex / Agent 负责调度、检查、判断、质疑和中文综合。
+- `litagent` 负责确定性工具执行，包括搜索、去重、下载、解析、初步分类、初步阅读、知识构建、证据表（evidence table）构建、报告草稿、审计和质量信号输出。
+
+核心原则是：`litagent` 不承担最终研究判断，Codex / Agent 必须检查中间产物并完成二次判断和中文综合。
+
+## 当前能力
+
+当前系统已经具备以下能力：
+
+- 小规模真实综述（small real review）流程可以跑通。
+- 搜索批次隔离（search run isolation）可用，搜索结果写入 `data/search_runs/{run_id}/`。
+- 相关性敏感排序可用，并为论文生成 `score_explanation`。
+- `review-selection` 可用，可以在下载前标记相关、可疑和偏题论文。
+- 本地 `pypdf` 解析可用，适合普通文本 PDF。
+- parsed Markdown notes 可用，笔记能区分元数据/摘要来源和全文解析来源。
+- 证据表可用，输出 `knowledge/evidence_table.md` 和 `knowledge/evidence_table.json`。
+- `audit` 和 `inspect-workspace` 可用，可输出质量信号和阶段标签。
+
+## 当前基线
+
+当前重要 workspace 基线如下：
+
+- `./demo-agent-mock`：确定性 mock 流程基线，用于验证端到端流程。
+- `./demo-real-small`：早期小规模真实检索基线，验证真实下载、pypdf 解析和审计。
+- `./demo-real-v2`：8 篇真实相关论文基线，验证 evidence table 前后的报告改进方向。
+- `./demo-real-v3`：当前最佳基线，12 篇真实相关论文，完成下载、解析、阅读、证据表、报告、审计和 inspect。
+
+## demo-real-v3 证明了什么
+
+`./demo-real-v3` 证明了：
+
+- 可以处理 12 篇真实相关论文。
+- 可以完成真实搜索、去重、下载、本地 pypdf 解析、分类、阅读、知识构建、证据表、报告、审计和 inspect。
+- 下载成功率为 12/12。
+- pypdf 解析成功率为 12/12。
+- 笔记来自 parsed Markdown 的数量为 12。
+- 抽象回退（abstract fallback）数量为 0。
+- 证据表已经生成。
+- `audit` 结果为 PASS。
+- `inspect-workspace` 标签为 `small_real_review`。
+
+## demo-real-v3 没有证明什么
+
+`./demo-real-v3` 没有证明：
+
+- 没有证明来源多样性（source diversity）已经达到 `source_diverse_real_review`。
+- 没有证明生产级综述（production quality review）能力。
+- 没有证明复杂 PDF、OCR 密集 PDF 或表格密集论文可以稳定处理。
+- 没有证明 deterministic report 足够接近人工研究综述。
+- 没有证明 Semantic Scholar 可稳定使用，因为当前缺少 `SEMANTIC_SCHOLAR_API_KEY`。
+- 没有证明 evidence extraction 已经足够干净，因为仍会抓到 references、headers、captions、prompts、code、tables 和 layout artifacts 等噪声。
+
+## 当前阶段定义
+
+当前阶段是小规模真实综述原型（small_real_review prototype）。
+
+这个阶段的含义是：
+
+- 能用真实检索完成 8 到 15 篇相关论文的小规模综述流程。
+- 能下载和解析开放获取 PDF。
+- 能生成 parsed Markdown notes。
+- 能生成证据表和报告草稿。
+- 能通过 audit 和 inspect 给出质量信号。
+- 但仍需要 Codex / Agent 做最终判断和中文研究级综合。
+
+## 质量等级定义
+
+### 冒烟测试（smoke_test_run）
+
+只验证流程是否跑通，可以使用 mock 数据。它不代表真实综述质量，也不应用来判断研究结论。
+
+典型条件：
+
+- 使用 mock 搜索。
+- 论文数量很少。
+- 不要求真实下载或高质量解析。
+- 报告可以是流程产物，不应作为真实研究报告。
+
+### 小规模真实综述（small_real_review）
+
+使用真实检索，通常有 8 到 15 篇相关论文。
+
+最低要求：
+
+- 使用真实 API 检索。
+- selected papers 与主题相关。
+- 下载和解析成功率合理。
+- notes 主要来自 parsed Markdown。
+- 证据表存在。
+- final report 有论文级引用。
+- `review-selection` 没有严重 off-topic。
+- `audit` 通过。
+
+限制：
+
+- 来源多样性可能不足。
+- 证据片段可能有噪声。
+- 报告深度可能仍接近草稿。
+- 仍需要 Codex / Agent 人工判断和中文综合。
+
+### 来源多样真实综述（source_diverse_real_review）
+
+这是下一阶段需要验证的质量等级。
+
+最低要求：
+
+- 至少两个或更多真实数据源有效参与。
+- selected papers 不被单一来源垄断。
+- `review-selection` 干净。
+- 证据表质量较高。
+- final report 有明确的论文级支撑（paper-specific support）。
+- 来源失衡不再是主要风险。
+
+### 生产级综述（production_quality_review）
+
+当前项目尚未达到。
+
+生产级综述需要：
+
+- 更大规模但受控的论文集合。
+- 明确的纳入/排除标准。
+- 可复查的检索策略。
+- 高质量全文解析。
+- 结构化证据链。
+- 可靠的中文研究级综合。
+- 人工审阅或严格质量门禁。
+- 对引用可靠性、检索覆盖、证据质量和报告质量有明确评估。
+
+## 下一阶段定义
+
+下一阶段目标是：证据质量增强 + 中文研究级综合 + 来源多样性验证。
+
+### 优先级 1：章节感知证据抽取（section-aware evidence extraction）
+
+目标：
+
+- 识别 Introduction、Method、Evaluation、Limitation、Conclusion 等章节。
+- 降低 References、Appendix、prompt、code、table 和 layout artifacts 的权重。
+- 让 evidence snippet 更干净、更可读、更适合支撑报告。
+
+### 优先级 2：证据质量评分（evidence quality scoring）
+
+目标：
+
+- 每条 evidence snippet 记录 section。
+- 每条 evidence snippet 有 `snippet_score`。
+- 每条 evidence snippet 有 `snippet_score_explanation`。
+- `audit` 和 `inspect-workspace` 能提示 evidence quality 问题。
+
+### 优先级 3：中文研究级报告生成
+
+目标：
+
+- `litagent report` 可以生成中文报告草稿。
+- Codex / Agent 基于证据表做二次中文综合。
+- `final_report.md` 不再像英文模板。
+- 报告包含：
+  - 执行摘要。
+  - 方法分类。
+  - 系统对比。
+  - 证据支撑的主题综合。
+  - 研究空白。
+  - 对 `litagent` 的设计启发。
+  - 下一步路线图。
+
+### 优先级 4：配置 Semantic Scholar API key 后的来源多样性验证
+
+目标：
+
+- 新 workspace：`./demo-real-v4`。
+- `max_papers=15`。
+- 配置 `SEMANTIC_SCHOLAR_API_KEY`。
+- 验证是否可以达到 `source_diverse_real_review`。
+
+## 暂时不要做
+
+- 不要扩大到 30 或 50 篇论文。
+- 不要急着接很多外部 MCP。
+- 不要把 MinerU 作为默认解析路径。
+- 不要把 deterministic report 当作最终研究报告。
+- 不要继续无规划地“跑一轮发现问题加一个功能”。

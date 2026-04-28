@@ -117,6 +117,20 @@
 - Audit and `inspect-workspace` now warn when the evidence table is missing, notes remain
   abstract-level despite parsed Markdown, reports have too few unique paper references, or generic
   claims appear without paper support.
+- Ran the broader small real review in `./demo-real-v3` for `多智能体文献综述自动化工具` with search
+  run `demo-real-v3-initial`.
+- `./demo-real-v3` produced 382 raw results, selected 12 relevant papers, downloaded 12/12 legal
+  open PDFs, parsed 12/12 PDFs with local pypdf, generated 12 notes from parsed Markdown, generated
+  `knowledge/evidence_table.md` and `knowledge/evidence_table.json`, passed audit, and was labeled
+  `small_real_review` by `inspect-workspace`.
+- Semantic Scholar was attempted during `./demo-real-v3` but was effectively unavailable without
+  `SEMANTIC_SCHOLAR_API_KEY`; the run remains arXiv/OpenAlex dominated and should not be treated as
+  `source_diverse_real_review`.
+- Completed a stage-convergence pass that defines the current phase as `small_real_review`
+  prototype and the next phase as evidence-quality enhancement, Chinese research-grade synthesis,
+  and source-diversity validation.
+- Added project-level documentation for Codex / Agent vs. `litagent` responsibility boundaries,
+  Chinese output policy, quality labels, regression checks, and the next-stage roadmap.
 
 ## Validation
 
@@ -174,6 +188,18 @@
   `litagent build-evidence --json`, `litagent report`, `litagent audit`, and
   `litagent inspect-workspace --json`. Inspect reports `small_real_review`, 8/8 parsed Markdown,
   8/8 notes with parsed full-text evidence, 0 abstract fallback notes, and no quality concerns.
+- Passed: `litagent review-selection ./demo-real-v3 --json` after plan refinement; it reported
+  12 likely relevant papers, 0 questionable papers, 0 likely off-topic papers, and no missing
+  subtopics.
+- Passed: `litagent audit ./demo-real-v3`; audit reports 12 selected papers, 12 PDFs, 12 parsed
+  Markdown files, 100% parse success, 12 notes from parsed Markdown, 0 abstract fallback notes, and
+  12 unique paper references in the report.
+- Passed: `litagent inspect-workspace ./demo-real-v3 --json`; it reports `small_real_review`,
+  evidence table present, audit passed, 12/12 parsed Markdown, and no parse/report/audit concerns.
+- Passed: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider` with 39 tests after
+  the stage-convergence documentation update.
+- Passed: `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache ruff check .` after the stage-convergence
+  documentation update.
 
 ## Known Issues
 
@@ -190,6 +216,10 @@
 - There is no LLM-backed reader yet. Notes and reports now use parsed-Markdown evidence, but
   extraction is still deterministic and can select noisy snippets from headers, captions, or
   reference-adjacent text.
+- `./demo-real-v3` confirms that evidence extraction can still select noisy snippets from
+  references, headers, captions, prompts, code, tables, and layout artifacts.
+- Current deterministic `litagent report` is still a report draft and may read like an English
+  template. Final user-facing research synthesis should be written in Chinese by Codex / Agent.
 - Historical `./demo-agent-mock` logs still contain the earlier 5 local parse skips from before `pypdf` was installed, but rerunning download/parse/read/report/audit produced 5/5 parsed Markdown files and notes from parsed Markdown.
 - Semantic Scholar returned 429 during `./demo-real-v2` without an API key, so the next real run
   should set `SEMANTIC_SCHOLAR_API_KEY` when available and treat OpenAlex dominance as a warning
@@ -199,7 +229,11 @@
 
 ## Next Task
 
-For the next larger real review, use a fresh workspace, configure `SEMANTIC_SCHOLAR_API_KEY`, and
-expand only after `review-selection`, parse quality, evidence table generation, audit, and
-`inspect-workspace` all remain clean.
+Do not expand to larger real reviews yet. Next work should focus only on:
+
+1. Section-aware evidence extraction.
+2. Evidence quality scoring.
+3. Chinese research-grade report drafting and Agent synthesis workflow.
+4. A later `./demo-real-v4` source-diversity validation only after `SEMANTIC_SCHOLAR_API_KEY` is
+   configured.
 

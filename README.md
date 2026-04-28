@@ -2,6 +2,40 @@
 
 Agentic Literature Research Workbench CLI.
 
+## 当前阶段
+
+当前项目阶段是小规模真实综述原型（small_real_review prototype）。
+
+`litagent` 已经可以完成小规模真实文献综述流程，但它不是最终研究判断者。项目采用以下职责边界：
+
+- Codex / Agent 是调度、检查、判断、质疑和中文综合层。
+- `litagent` 是确定性工具层，负责搜索、去重、下载、解析、初步分类、初步阅读、知识构建、证据表（evidence table）构建、报告草稿、审计和质量信号输出。
+- `classify`、`read`、`build-knowledge`、`build-evidence` 和 `report` 输出都应视为草稿或结构化中间产物，不应直接视为最终学术判断。
+- `audit PASS` 不是唯一成功标准。Codex / Agent 仍必须检查候选论文、解析质量、证据表、报告深度和来源多样性（source diversity）。
+
+重要项目文档：
+
+- `docs/project_status.md`：当前阶段、质量等级、基线和下一阶段路线图。
+- `docs/chinese_output_policy.md`：中文输出规范。
+- `docs/regression_checklist.md`：回归检查清单。
+
+## 中文输出规范
+
+从当前阶段开始，Agent 面向用户的输出默认使用中文。最终报告和研究笔记也应默认使用中文，论文标题、命令、文件名、MCP tool 名、API 名和代码标识符可以保留英文原文。重要英文术语第一次出现时使用“中文解释（English original）”格式。
+
+当前确定性 `litagent report` 仍可能生成英文模板式草稿，因此它只能作为机器生成的中间产物。真实研究输出需要 Codex / Agent 基于 `library/notes`、`library/markdown` 和 `knowledge/evidence_table.*` 进行二次中文综合。
+
+## 质量等级
+
+`litagent inspect-workspace WORKSPACE --json` 当前使用以下质量标签：
+
+- 冒烟测试（smoke_test_run）：只验证流程，可以使用 mock，不代表真实综述质量。
+- 小规模真实综述（small_real_review）：使用真实检索，有 8 到 15 篇相关论文，下载和解析成功率合理，笔记主要来自 parsed Markdown，证据表存在，报告有论文级引用，但来源多样性、证据质量或报告深度仍有限。
+- 来源多样真实综述（source_diverse_real_review）：至少两个或更多真实数据源有效参与，selected papers 不被单一来源垄断，`review-selection` 干净，证据表质量较高，报告有明确论文级支撑。
+- 生产级综述（production_quality_review）：更大规模，有明确纳入/排除标准、可复查检索策略、高质量全文解析、结构化证据链、可靠中文研究级综合，并经过人工审阅或严格质量门禁。当前项目尚未达到。
+
+当前最佳基线是 `./demo-real-v3`。它达到 `small_real_review`，但没有达到 `source_diverse_real_review` 或 `production_quality_review`。
+
 ## Local development
 
 ```bash
@@ -163,15 +197,11 @@ python -m litagent.mcp_server
 Recommended next broader real run:
 
 ```text
-Use $litagent-researcher to run a broader real-mode literature review for
-`多智能体文献综述自动化工具` in a fresh workspace after `SEMANTIC_SCHOLAR_API_KEY` is configured.
-Use real API search, no mock mode, legal open-access PDFs only, local pypdf parsing first, and
-MinerU only for OCR/complex-layout/table-heavy PDFs. Start with status/inspect, create and inspect
-a focused plan, search with a clear run_id, inspect raw results, dedup latest search run only, run
-review-selection before download, refine if needed, then download, parse, classify, read,
-build-knowledge, build-evidence, report, audit, and inspect-workspace. Do not accept the run unless
-selection quality, parse quality, evidence table, audit, inspect label, and report quality are all
-acceptable.
+下一阶段先不要扩大真实检索规模。优先改进 section-aware evidence extraction、
+evidence quality scoring 和中文研究级报告生成。
+
+配置 SEMANTIC_SCHOLAR_API_KEY 后，再使用 fresh workspace ./demo-real-v4
+做 max_papers=15 的 source-diverse validation。
 ```
 
 ## VS Code Reopen in Container
