@@ -161,3 +161,35 @@ litagent job list --json
 - `run_state.json`、`run_log.jsonl`、`artifacts_manifest.json`、`errors.json` 存在。
 - `library.db` 能看到同步后的 topic 和 papers。
 - OpenClaw 没有获得任意 shell 权限。
+
+## `/research` 没有触发 Autoresearch 时
+
+如果 QQBot 对 `/research library` 回复“你想研究哪种 library”，说明 OpenClaw 没有加载或没有选择
+`autoresearch` skill，而是把 `library` 当成普通英文词处理。
+
+先在宿主机确认 skill 是否可见：
+
+```powershell
+openclaw config get skills.load.extraDirs
+openclaw skills list
+```
+
+正常应同时看到 AutoWiki-skill 和 `autoresearch`。如果没有 `autoresearch`，重新设置路径并重启：
+
+```powershell
+openclaw config set skills.load.extraDirs[1] "D:/study/Autoresearch/openclaw/skills"
+openclaw config validate
+openclaw gateway restart
+openclaw skills list
+```
+
+如果 `openclaw skills list` 已经能看到 `autoresearch`，但 QQBot 仍然不触发，可能是旧 QQ 会话持有
+旧的 skills snapshot。重启 gateway 后开启新的 QQ 会话，或让用户发送更明确的命令：
+
+```text
+/research library
+请使用 autoresearch skill，执行 litagent library-status。
+```
+
+不要把这个问题误判为 `litagent` 失败。只要宿主机 `litagent job --help` 和 mock job 已通过，
+CLI 层就是可用的；问题在 OpenClaw skill 加载或会话触发层。

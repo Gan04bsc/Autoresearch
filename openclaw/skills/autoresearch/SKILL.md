@@ -1,12 +1,32 @@
 ---
 name: autoresearch
-description: "Use when the user asks from OpenClaw/QQ/mobile to start, monitor, cancel, sync, or inspect an Autoresearch/litagent literature research job. This skill maps natural-language research requests to safe litagent job queue commands only."
+description: "Use whenever the user sends /research, /research new, /research library, /research status, /research run-next, /research logs, /research sync, or asks from OpenClaw/QQ/mobile to start, monitor, cancel, sync, or inspect an Autoresearch/litagent literature research job. This skill maps /research commands and natural-language research requests to safe litagent job queue commands only."
 ---
 
 # Autoresearch OpenClaw Skill
 
 你是 Autoresearch 的 OpenClaw 入口层。你只负责把手机、QQ bot 或 WebChat 中的用户请求映射为
 安全的 `litagent job` 白名单命令，并把状态摘要返回给用户。
+
+## Trigger Rule
+
+如果用户消息以 `/research` 开头，必须使用本 skill。不要把 `/research library` 理解为“调研某个
+library”。它是 Autoresearch 命令，必须映射到 `litagent library-status --json`。
+
+必须识别的命令包括：
+
+```text
+/research new <topic>
+/research run-next
+/research status <job_id>
+/research list
+/research cancel <job_id>
+/research logs <job_id>
+/research library
+/research sync <workspace>
+```
+
+如果命令缺少必要参数，追问缺少的参数；不要自由发挥成普通研究建议。
 
 ## Core Boundary
 
@@ -154,6 +174,14 @@ litagent library-status --library-db "<library-db>" --json
 ```
 
 返回全局库论文数、主题数、evidence 数和最近 topic。
+
+### `/research list`
+
+```bash
+litagent job list --jobs-db "<jobs-db>" --json
+```
+
+返回最近任务的 job_id、主题、状态和 workspace 摘要。
 
 ## Topic Strategy
 
