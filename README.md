@@ -224,6 +224,29 @@ litagent job run-next --json
 `--sync-library`，成功后会同步到 `library.db`。后续 OpenClaw Research Skill 应只映射到
 这些 job 命令，而不是让聊天 Agent 自由执行 shell。
 
+## OpenClaw / QQ bot 接入
+
+仓库提供一个最小 OpenClaw-compatible skill：
+
+```text
+openclaw/skills/autoresearch/SKILL.md
+```
+
+它只负责把 QQ bot、手机或 WebChat 中的 `/research ...` 请求映射到 `litagent job`
+白名单命令。它不接管研究判断，不允许任意 shell，也不替代 AutoWiki-skill。
+
+重要限制：当前 `/app` 容器无法直接读取宿主机 OpenClaw 和 QQ bot 配置。因此不能在容器内确认
+正在运行的 OpenClaw 是否就是用户说的那个 QQ bot 实例。需要在宿主机运行：
+
+```powershell
+openclaw health
+openclaw config validate
+openclaw config get skills.load.extraDirs
+openclaw skills list
+```
+
+接入步骤和路径注意事项见 `docs/openclaw_integration.md`。
+
 ## Semantic Scholar API 配置
 
 `litagent` 使用 `SEMANTIC_SCHOLAR_API_KEY` 读取 Semantic Scholar API key。配置后，

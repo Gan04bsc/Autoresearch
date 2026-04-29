@@ -416,6 +416,13 @@
 - Added MCP tools for local jobs: `litagent_job_create`, `litagent_job_status`,
   `litagent_job_list`, `litagent_job_cancel`, `litagent_job_logs`, and
   `litagent_job_run_next`.
+- Added the first OpenClaw-compatible Autoresearch skill draft at
+  `openclaw/skills/autoresearch/SKILL.md`. It maps `/research ...` style mobile/QQ bot
+  requests to safe `litagent job` commands only, and explicitly forbids arbitrary shell.
+- Added `docs/openclaw_integration.md` to document host-side OpenClaw/QQ bot verification.
+  The current `/app` container cannot directly confirm the user's host OpenClaw/QQ bot instance,
+  so setup must be verified on the host with `openclaw health`, `openclaw config validate`,
+  and skill/channel checks.
 
 ## Known Issues
 
@@ -448,10 +455,10 @@
 Do not expand to larger real reviews yet. Next work should focus on backend reliability and
 research workspace quality:
 
-1. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before connecting
-   OpenClaw.
-2. Define an OpenClaw Research Skill that maps mobile commands only to job/status/sync/audio
-   whitelist commands, not arbitrary shell execution.
+1. Verify the host OpenClaw/QQ bot configuration outside the `/app` container and append
+   `openclaw/skills` to the actual host skill path.
+2. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before giving
+   OpenClaw real tasks.
 3. Use `./demo-real-v3` as the evidence-quality regression baseline.
 4. Use `./demo-real-v4` as the source-diversity regression baseline.
 5. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a

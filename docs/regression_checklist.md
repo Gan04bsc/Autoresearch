@@ -91,6 +91,9 @@ litagent library-status --library-db .tmp/autoresearch-library.db --json
 - `--sync-library` 是否只在 topic-run 成功后同步 `library.db`。
 - job 错误是否脱敏，不泄露 API key、Bearer token 或 `.env` 内容。
 - OpenClaw 设计是否仍是入口和通知层，而不是研究判断层或任意 shell 执行器。
+- `openclaw/skills/autoresearch/SKILL.md` 是否仍只允许白名单 `litagent job` 命令。
+- 是否没有覆盖 AutoWiki-skill 配置。
+- 是否明确说明当前容器不能确认宿主机 QQ bot 实例，必须在宿主机 OpenClaw 环境检查。
 
 最小非网络回归命令：
 
@@ -104,6 +107,15 @@ litagent job create \
   --json
 litagent job run-next --jobs-db .tmp/jobs.db --json
 litagent job list --jobs-db .tmp/jobs.db --json
+```
+
+OpenClaw 宿主机检查：
+
+```powershell
+openclaw health
+openclaw config validate
+openclaw config get skills.load.extraDirs
+openclaw skills list
 ```
 
 ## search / ranking

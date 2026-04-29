@@ -181,6 +181,22 @@ litagent job run-next --json
 - 不要把 OpenClaw 配成任意 shell executor。
 - 不要把 API key、`.env` 或私密笔记写入 job payload、日志或提交记录。
 
+## OpenClaw / QQ Bot 配置确认规则
+
+本仓库提供 `openclaw/skills/autoresearch/SKILL.md`，但不能在当前 `/app` 容器里直接确认宿主机
+OpenClaw 是否就是用户正在使用的 QQ bot 实例。
+
+如果用户要求接入 OpenClaw：
+
+- 先检查当前运行环境是否能访问 `openclaw`。
+- 如果只能看到容器内 `/app`，不要假设宿主机 QQ bot 配置可见。
+- 不要覆盖已有 AutoWiki-skill 配置；应该追加 `openclaw/skills` 路径。
+- 让用户在宿主机确认 `openclaw health`、`openclaw config validate`、
+  `openclaw config get skills.load.extraDirs` 和 QQ bot channel/connector 状态。
+- 不要输出或提交 QQ bot token、cookie、API key 或 `.env`。
+
+详细说明见 `docs/openclaw_integration.md`。
+
 ## 全局文献库规则
 
 `library.db` 是长期资产层。它用于跨 workspace 复用文献、topic membership 和 evidence，

@@ -127,6 +127,17 @@ job；如果创建任务时传入 `--sync-library`，成功后会同步到 `libr
 提供安全接口，但还不是完整后台 daemon。后续可以在此基础上加 worker、进度通知和手机端
 消息映射。
 
+当前已经补充 OpenClaw skill 草案：
+
+```text
+openclaw/skills/autoresearch/SKILL.md
+```
+
+该 skill 只把 `/research ...` 请求映射到 `litagent job`、`library-status`、
+`inspect-workspace` 和 `export-wiki` 等白名单命令。当前容器不能直接确认宿主机 OpenClaw
+是否连接了用户所说的 QQ bot；正式接入前必须在宿主机运行 OpenClaw 配置检查，见
+`docs/openclaw_integration.md`。
+
 ## 论文角色和阅读意图
 
 当前采用双层分类。
