@@ -423,6 +423,11 @@
   The current `/app` container cannot directly confirm the user's host OpenClaw/QQ bot instance,
   so setup must be verified on the host with `openclaw health`, `openclaw config validate`,
   and skill/channel checks.
+- Documented the second OpenClaw integration failure mode: `SKILL.md` can teach the agent how to
+  handle `/research ...`, but it does not by itself expose `litagent` as an executable tool.
+  OpenClaw needs either a safe command bridge/native command mapping or a tightly scoped
+  `coding-agent` fallback that runs only whitelisted commands such as
+  `litagent library-status --json`.
 
 ## Known Issues
 
@@ -457,16 +462,19 @@ research workspace quality:
 
 1. Verify the host OpenClaw/QQ bot configuration outside the `/app` container and append
    `openclaw/skills` to the actual host skill path.
-2. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before giving
+2. Add a safe OpenClaw command bridge/native command mapping for `/research library`,
+   `/research list`, `/research status <job_id>`, and `/research run-next`, or explicitly use a
+   constrained `coding-agent` fallback for one command at a time.
+3. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before giving
    OpenClaw real tasks.
-3. Use `./demo-real-v3` as the evidence-quality regression baseline.
-4. Use `./demo-real-v4` as the source-diversity regression baseline.
-5. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
+4. Use `./demo-real-v3` as the evidence-quality regression baseline.
+5. Use `./demo-real-v4` as the source-diversity regression baseline.
+6. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
    real Obsidian/AutoWiki maintenance workflow.
-6. Treat `litagent export-wiki` as artifact packaging only; use Codex/AutoWiki skill for actual
+7. Treat `litagent export-wiki` as artifact packaging only; use Codex/AutoWiki skill for actual
    milestone/topic/source synthesis.
-7. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
+8. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
    further optimizing `final_report.md`.
-8. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
+9. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
    download, parse, or evidence extraction.
 

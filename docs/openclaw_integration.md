@@ -193,3 +193,33 @@ openclaw skills list
 
 不要把这个问题误判为 `litagent` 失败。只要宿主机 `litagent job --help` 和 mock job 已通过，
 CLI 层就是可用的；问题在 OpenClaw skill 加载或会话触发层。
+
+## Skill 已理解但无法执行命令时
+
+如果 QQBot 回复类似：
+
+```text
+当前环境里没有可直接调用的 autoresearch 技能 / litagent library-status 命令能力暴露
+```
+
+这说明问题已经从“命令被当成普通聊天”前进到“运行时没有暴露执行能力”。`SKILL.md` 只是技能
+说明，不会自动把 `litagent` 变成 OpenClaw tool。
+
+需要补齐以下二选一：
+
+1. 配置一个安全 command bridge，把 `/research library`、`/research list`、
+   `/research status <job_id>` 等固定命令映射到白名单 `litagent` CLI。
+2. 临时使用 OpenClaw 已有的 `coding-agent` skill 执行单步白名单命令，例如只运行
+   `litagent library-status --json`，并禁止读取 `.env`、token、cookie、session 等私密文件。
+
+临时验证提示词：
+
+```text
+/research library
+请使用 autoresearch skill。如果没有直接命令工具，请委托 coding-agent 在
+D:/study/Autoresearch 中只运行 litagent library-status --json。
+不要运行其他命令，不要读取或打印 .env、API key、QQ token、cookie 或 session 文件。
+只返回论文数、主题数、runs 数、evidence 数和最近 topic 摘要。
+```
+
+长期方案应该是 command bridge / native command，而不是让聊天 agent 拥有任意 shell 权限。

@@ -33,6 +33,9 @@ library”。它是 Autoresearch 命令，必须映射到 `litagent library-stat
 - OpenClaw 是入口和通知层。
 - `litagent` 是确定性研究流程执行层。
 - Codex / Agent 是判断、质疑、综合和中文写作层。
+- `SKILL.md` 本身只是技能说明，不等于已经有命令执行工具。
+- 如果当前 OpenClaw 会话没有直接暴露命令执行能力，必须使用已配置的安全 command bridge；
+  若只能使用 `coding-agent`，也只能让它执行本文件列出的白名单 `litagent` 命令。
 - 不允许 OpenClaw 自由执行 shell。
 - 不允许 OpenClaw 绕过 `litagent job` 直接拼接任意命令。
 - 不允许绕过 paywall、抓取 Google Scholar 或下载非法 PDF。
@@ -52,6 +55,31 @@ litagent job run-next ...
 litagent library-status ...
 litagent inspect-workspace ...
 litagent export-wiki ...
+```
+
+## Runtime Execution Rule
+
+当用户发送 `/research ...` 时，先判断当前 OpenClaw 会话是否有可调用的命令工具。
+
+优先级：
+
+1. 如果存在安全 command bridge / native command tool，直接执行对应白名单命令。
+2. 如果没有 command bridge，但 `coding-agent` skill 可用，只能把一个明确、单步、白名单命令委托给
+   `coding-agent`。委托内容必须指定工作目录、唯一命令和禁止事项。
+3. 如果既没有 command bridge，也没有 `coding-agent`，明确告诉用户：
+   `autoresearch` skill 已加载但当前运行时没有暴露 `litagent` 执行能力，需要配置 command bridge
+   或启用受限 `coding-agent`。
+
+禁止在没有执行工具时假装已经执行命令。也不要把 `/research library` 改写成普通“library 调研”。
+
+安全委托模板：
+
+```text
+请在 Windows 宿主机工作目录 D:/study/Autoresearch 中只运行以下命令：
+litagent library-status --json
+
+不要运行其他命令，不要读取或打印 .env、API key、QQ token、cookie 或 session 文件。
+只返回 JSON 的论文数、主题数、runs 数、evidence 数和最近 topic 摘要。
 ```
 
 禁止：
@@ -174,6 +202,12 @@ litagent library-status --library-db "<library-db>" --json
 ```
 
 返回全局库论文数、主题数、evidence 数和最近 topic。
+
+如果没有直接命令工具，但有 `coding-agent`，使用上面的安全委托模板，并把命令替换为：
+
+```bash
+litagent library-status --json
+```
 
 ### `/research list`
 
