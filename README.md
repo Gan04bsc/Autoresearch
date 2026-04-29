@@ -76,6 +76,7 @@ Agentic literature research workspace CLI.
 pip install -e ".[dev]"
 litagent init ./demo
 litagent run "agentic literature review tools" --workspace ./demo --max-papers 10 --mock
+litagent topic-run "多模态模型" --workspace ~/.autoresearch/topics/multimodal-models --mock
 pytest
 ruff check .
 ```
@@ -102,6 +103,7 @@ litagent report ./my-topic
 litagent audit ./my-topic
 litagent status ./my-topic --json
 litagent inspect-workspace ./my-topic --json
+litagent topic-run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mock
 litagent run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mock
 litagent run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mineru-mode auto
 ```
@@ -110,6 +112,50 @@ Use `--mock` for deterministic offline tests. Without `--mock`, search calls the
 Semantic Scholar, and OpenAlex providers. DOI PDF resolution uses Unpaywall and requires
 `UNPAYWALL_EMAIL` or `LITAGENT_CONTACT_EMAIL`; failed downloads are logged and do not stop
 the rest of the pipeline.
+
+## 一键 Topic Run
+
+`litagent topic-run` 是把 Autoresearch 做成稳定后台服务的第一步。它把现有确定性命令串成
+一个可恢复的主题调研流程，默认顺序为：
+
+```text
+plan -> search -> dedup -> review-selection -> download -> parse -> classify -> read
+-> build-knowledge -> build-evidence -> export-wiki -> audit -> inspect-workspace
+```
+
+示例：
+
+```bash
+litagent topic-run "多模态模型" \
+  --workspace ~/.autoresearch/topics/multimodal-models \
+  --max-papers 50
+```
+
+离线回归或开发时使用：
+
+```bash
+litagent topic-run "agentic literature review automation" \
+  --workspace .tmp/topic-run-demo \
+  --max-papers 5 \
+  --mock
+```
+
+该命令会在 workspace 根目录写入：
+
+- `run_state.json`：每个步骤的状态、输入数量、输出数量、失败数量和时间戳。
+- `run_log.jsonl`：事件流，后续可直接用于手机端进度通知。
+- `artifacts_manifest.json`：关键产物清单和缺失文件列表。
+- `errors.json`：可恢复错误摘要，不写入真实 API key。
+
+默认会跳过 `run_state.json` 中已经成功的步骤，用于失败后恢复。需要重新跑全部步骤时使用
+`--force`；需要从某一步向后重跑时使用 `--from-step parse` 这类参数。
+
+`topic-run` 默认使用本地 `pypdf` 路径（`--mineru-mode off`）。只有明确传入
+`--mineru-mode auto|agent|precision` 时才会使用 MinerU。默认 Wiki 导出目录为
+`WORKSPACE/wiki-vault`，也可以用 `--wiki-out` 指定到 Obsidian vault。
+
+这个命令不是让 `litagent` 接管最终研究判断。它只负责稳定执行、记录状态和生成可检查产物；
+Codex / Agent 仍必须检查 `review-selection`、证据质量、知识页、来源多样性和中文材料质量。
 
 ## Semantic Scholar API 配置
 

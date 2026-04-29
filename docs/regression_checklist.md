@@ -17,6 +17,38 @@
   综述生成系统。
 - 新领域扩大到 50-70 篇时，是否有质量门禁，优先顶会、顶刊、高引用基础论文、权威技术报告、
   主流 benchmark 和可复现系统。
+- `topic-run` 是否仍被定位为后台流程编排和状态记录，而不是把 `final_report.md`
+  重新变成唯一终点。
+
+## topic-run / backend readiness
+
+修改 CLI 编排、OpenClaw 接入、状态记录或 workspace 产物时，检查：
+
+- `litagent topic-run TOPIC --workspace WORKSPACE` 是否仍能串联
+  `plan -> search -> dedup -> review-selection -> download -> parse -> classify -> read ->
+  build-knowledge -> build-evidence -> export-wiki -> audit -> inspect-workspace`。
+- 是否写入 `run_state.json`。
+- 是否写入 `run_log.jsonl`。
+- 是否写入 `artifacts_manifest.json`。
+- 是否写入 `errors.json`。
+- 每个 step 是否记录 `status`、`input_count`、`output_count`、`failed_count`、
+  `started_at` 和 `finished_at`。
+- 默认是否跳过已经成功的步骤，支持失败后重新运行。
+- `--force` 是否能重跑全部步骤。
+- `--from-step` 是否能从指定步骤向后重跑。
+- 错误摘要是否脱敏，不泄露 API key、Bearer token 或 `.env` 内容。
+- 默认 parse 是否仍为本地 pypdf first，不把 MinerU 变成默认路径。
+- `review-selection` 发现 likely off-topic 时，是否在下载前阻止或明确要求人工复核。
+- `export-wiki` 是否只使用 workspace 已有产物，不调用网络、不重新下载、不重新解析。
+
+最小非网络回归命令：
+
+```bash
+litagent topic-run "agentic literature review automation" \
+  --workspace .tmp/topic-run-smoke \
+  --max-papers 5 \
+  --mock
+```
 
 ## search / ranking
 

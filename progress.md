@@ -393,6 +393,18 @@
   `technical-frontier.md`, `method-matrix.md`, `benchmark-matrix.md`,
   `innovation-opportunities.md`, `reading-plan.md`, and `index.md`.
 - Verified the generated MLLM vault has 355 Markdown files and 0 missing Obsidian wikilinks.
+- Added `litagent topic-run` as the first backend-service milestone for Autoresearch. It
+  orchestrates `plan -> search -> dedup -> review-selection -> download -> parse -> classify ->
+  read -> build-knowledge -> build-evidence -> export-wiki -> audit -> inspect-workspace`
+  without making `final_report.md` the core endpoint.
+- `topic-run` writes root-level execution artifacts: `run_state.json`, `run_log.jsonl`,
+  `artifacts_manifest.json`, and `errors.json`. Each step records status, input count, output
+  count, failed count, and timestamps so later OpenClaw/mobile status can read deterministic
+  progress instead of scraping console output.
+- `topic-run` supports failure recovery by skipping previously succeeded steps by default,
+  `--force` to rerun all steps, and `--from-step` to rerun a step plus downstream steps.
+- `topic-run` defaults to local pypdf parsing through `--mineru-mode off`; MinerU remains an
+  explicit opt-in for OCR-heavy, table-heavy, or complex-layout PDFs.
 
 ## Known Issues
 
@@ -422,16 +434,18 @@
 
 ## Next Task
 
-Do not expand to larger real reviews yet. Next work should focus on research workspace quality:
+Do not expand to larger real reviews yet. Next work should focus on backend reliability and
+research workspace quality:
 
-1. Use `./demo-real-v3` as the evidence-quality regression baseline.
-2. Use `./demo-real-v4` as the source-diversity regression baseline.
-3. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
+1. Stabilize `litagent topic-run` as the local one-command workflow before connecting OpenClaw.
+2. Use `./demo-real-v3` as the evidence-quality regression baseline.
+3. Use `./demo-real-v4` as the source-diversity regression baseline.
+4. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
    real Obsidian/AutoWiki maintenance workflow.
-4. Treat `litagent export-wiki` as artifact packaging only; use Codex/AutoWiki skill for actual
+5. Treat `litagent export-wiki` as artifact packaging only; use Codex/AutoWiki skill for actual
    milestone/topic/source synthesis.
-5. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
+6. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
    further optimizing `final_report.md`.
-6. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
+7. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
    download, parse, or evidence extraction.
 

@@ -20,6 +20,7 @@ from litagent.report import generate_final_report
 from litagent.review_selection import review_selection, review_selection_markdown
 from litagent.search import execute_search
 from litagent.status import workspace_status, workspace_status_markdown
+from litagent.topic_run import TOPIC_RUN_STEPS, run_topic
 from litagent.wiki_export import export_wiki
 from litagent.workspace import create_workspace
 
@@ -223,6 +224,37 @@ def run_research(args: argparse.Namespace) -> int:
     return 0 if result["audit"]["passed"] else 1
 
 
+def topic_run_command(args: argparse.Namespace) -> int:
+    result = run_topic(
+        args.topic,
+        args.workspace,
+        max_papers=args.max_papers,
+        max_results_per_source=args.max_results_per_source,
+        mock=args.mock,
+        mineru_mode=args.mineru_mode,
+        mineru_timeout=args.mineru_timeout,
+        search_run_id=args.run_id,
+        search_scope=args.search_scope,
+        wiki_out=args.wiki_out,
+        resume=not args.no_resume,
+        force=args.force,
+        from_step=args.from_step,
+        allow_selection_concerns=args.allow_selection_concerns,
+    )
+    state = result["state"]
+    inspect_step = (state.get("steps") or {}).get("inspect-workspace") or {}
+    details = inspect_step.get("details") or {}
+    print(f"Topic run {state['status']}: {args.topic}")
+    print(args.workspace / "run_state.json")
+    print(args.workspace / "artifacts_manifest.json")
+    print(args.workspace / "run_log.jsonl")
+    print(args.workspace / "errors.json")
+    if details.get("quality_label"):
+        print(f"Inspect label: {details['quality_label']}")
+    print(f"Wiki vault: {state.get('wiki_out')}")
+    return 0 if state["status"] == "succeeded" else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic literature research workbench.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -370,6 +402,60 @@ def build_parser() -> argparse.ArgumentParser:
     export_wiki_parser.add_argument("--out", type=Path, required=True)
     export_wiki_parser.add_argument("--json", action="store_true")
     export_wiki_parser.set_defaults(func=export_wiki_command)
+
+    topic_run_parser = subparsers.add_parser(
+        "topic-run",
+        help="Run a resumable topic workflow with run_state, run_log, and manifest files.",
+    )
+    topic_run_parser.add_argument("topic")
+    topic_run_parser.add_argument("--workspace", type=Path, required=True)
+    topic_run_parser.add_argument("--max-papers", type=int, default=30)
+    topic_run_parser.add_argument("--max-results-per-source", type=int, default=50)
+    topic_run_parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Use deterministic offline mock providers.",
+    )
+    topic_run_parser.add_argument(
+        "--mineru-mode",
+        choices=["off", "agent", "precision", "auto"],
+        default="off",
+        help="PDF parsing mode. Default keeps the first pass local with pypdf.",
+    )
+    topic_run_parser.add_argument("--mineru-timeout", type=int, default=300)
+    topic_run_parser.add_argument("--run-id", help="Optional explicit search run id.")
+    topic_run_parser.add_argument(
+        "--search-scope",
+        choices=["latest", "all", "selected"],
+        default="latest",
+        help="Which isolated search run results to deduplicate.",
+    )
+    topic_run_parser.add_argument(
+        "--wiki-out",
+        type=Path,
+        help="AutoWiki-compatible vault output directory. Defaults to WORKSPACE/wiki-vault.",
+    )
+    topic_run_parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Do not skip previously succeeded steps in run_state.json.",
+    )
+    topic_run_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Rerun every step even if run_state.json marks it succeeded.",
+    )
+    topic_run_parser.add_argument(
+        "--from-step",
+        choices=TOPIC_RUN_STEPS,
+        help="Resume by rerunning this step and all downstream steps.",
+    )
+    topic_run_parser.add_argument(
+        "--allow-selection-concerns",
+        action="store_true",
+        help="Continue even if review-selection flags likely off-topic papers.",
+    )
+    topic_run_parser.set_defaults(func=topic_run_command)
 
     run_parser = subparsers.add_parser("run", help="Run the full research pipeline.")
     run_parser.add_argument("topic")

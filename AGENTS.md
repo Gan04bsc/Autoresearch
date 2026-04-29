@@ -64,6 +64,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 构建带章节和质量评分的证据表。
 - 生成研究工作台知识页。
 - 导出 AutoWiki-compatible vault。
+- 通过 `topic-run` 记录可恢复的一键流程状态。
 - 可选生成报告草稿。
 - 输出 `audit` 和 `inspect-workspace` 质量信号。
 
@@ -119,6 +120,39 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 21. 运行 `inspect-workspace`。
 22. 如果 `audit PASS` 但工作台知识页缺失、证据表弱、解析失败、来源失衡、候选论文偏题
     或报告浅薄，必须继续修正。
+
+## 一键 Topic Run 规则
+
+`litagent topic-run` 是后台服务化和后续 OpenClaw 接入的基础命令。它用于稳定执行流程和记录
+状态，不替代 Codex / Agent 的研究判断。
+
+默认流程：
+
+```text
+plan -> search -> dedup -> review-selection -> download -> parse -> classify -> read
+-> build-knowledge -> build-evidence -> export-wiki -> audit -> inspect-workspace
+```
+
+运行后必须检查：
+
+- `run_state.json`
+- `run_log.jsonl`
+- `artifacts_manifest.json`
+- `errors.json`
+- `logs/review_selection.json`
+- `logs/inspect_workspace.json`
+
+默认行为：
+
+- 已成功步骤会被跳过，支持失败后恢复。
+- `--force` 用于重跑全部步骤。
+- `--from-step` 用于从某一步向后重跑。
+- 默认 `--mineru-mode off`，也就是本地 `pypdf` first。
+- 默认导出到 `WORKSPACE/wiki-vault`，也可用 `--wiki-out` 指定 Obsidian vault。
+- `review-selection` 发现 likely off-topic 时不应盲目继续下载，除非用户明确允许。
+
+后续 OpenClaw 不应直接自由执行 shell，而应只调用 `topic-run`、`status`、`inspect-workspace`、
+`export-wiki`、未来 `job status` 等白名单命令。
 
 ## 论文角色和阅读意图
 
@@ -190,6 +224,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - Export wiki: `litagent export-wiki WORKSPACE --format autowiki --out OUT_DIR`
 - Dedup latest search run: `litagent dedup WORKSPACE --search-scope latest --max-papers N`
 - Provider smoke test: `litagent provider-smoke semantic-scholar --json`
+- Topic run: `litagent topic-run "TOPIC" --workspace WORKSPACE --max-papers N`
 
 ## 完成标准
 

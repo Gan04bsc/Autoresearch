@@ -48,6 +48,44 @@
 - `export-wiki` 可以把已有 workspace 产物导出为 AutoWiki-compatible vault，
   供 Obsidian 或 AutoWiki-skill 长期维护。
 - `audit` 和 `inspect-workspace` 可用，可输出质量信号和阶段标签。
+- `topic-run` 可用，能把一次主题调研流程编排为可恢复的后台任务雏形，并写入
+  `run_state.json`、`run_log.jsonl`、`artifacts_manifest.json` 和 `errors.json`。
+
+## 后台服务化路线
+
+当前最重要的工程路线不是继续扩大论文数量，而是把 Autoresearch 变成稳定后台服务。
+
+第一步是 `litagent topic-run`：
+
+```bash
+litagent topic-run "多模态模型" \
+  --workspace ~/.autoresearch/topics/multimodal-models \
+  --max-papers 50
+```
+
+它默认执行：
+
+```text
+plan -> search -> dedup -> review-selection -> download -> parse -> classify -> read
+-> build-knowledge -> build-evidence -> export-wiki -> audit -> inspect-workspace
+```
+
+该命令的定位是稳定执行和记录状态，不是替代 Codex / Agent 的研究判断。它生成的状态文件将
+成为后续 OpenClaw 手机端 `status`、失败重试、增量更新和通知的基础。
+
+`topic-run` 当前输出：
+
+- `run_state.json`：步骤状态、输入数量、输出数量、失败数量和时间戳。
+- `run_log.jsonl`：事件流，用于后续 mobile status 和通知。
+- `artifacts_manifest.json`：关键产物清单。
+- `errors.json`：脱敏后的错误摘要。
+
+后续后台化顺序应保持收敛：
+
+1. 稳定 `topic-run` 和失败恢复。
+2. 增加全局文献库（global library），区分全局唯一 paper 和 topic 视角。
+3. 增加本地任务队列（job queue），只暴露白名单命令给 OpenClaw。
+4. 再接 OpenClaw Research Skill、Obsidian 增量同步和音频摘要。
 
 ## 论文角色和阅读意图
 
