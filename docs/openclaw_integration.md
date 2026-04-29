@@ -194,6 +194,35 @@ openclaw skills list
 不要把这个问题误判为 `litagent` 失败。只要宿主机 `litagent job --help` 和 mock job 已通过，
 CLI 层就是可用的；问题在 OpenClaw skill 加载或会话触发层。
 
+如果 QQBot 明确回复：
+
+```text
+当前可用技能列表里没有 autoresearch skill
+```
+
+说明当前 QQ 会话仍在使用旧的 `skillsSnapshot`。继续在聊天里提示“请使用 autoresearch skill”不会
+刷新这个快照。需要重置或删除当前 QQ session，让 OpenClaw 重新构建 skill snapshot。
+
+优先使用 OpenClaw 控制台：
+
+```text
+http://localhost:18789
+```
+
+进入 `Sessions`，删除或 reset 当前 QQ 私聊 session。历史上常见的 session key 形如：
+
+```text
+agent:main:qqbot:direct:<qq-openid-hash>
+agent:main:main
+```
+
+如果使用 CLI/gateway RPC，请只调用 session reset/delete，不要读取或打印 token、cookie、`.env` 或
+session transcript 内容。重置后重新发送：
+
+```text
+/research library
+```
+
 ## Skill 已理解但无法执行命令时
 
 如果 QQBot 回复类似：

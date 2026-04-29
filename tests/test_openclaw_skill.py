@@ -29,3 +29,5 @@ def test_openclaw_integration_doc_requires_host_verification() -> None:
     assert "不要把 token" in text
     assert "Skill 已理解但无法执行命令时" in text
     assert "command bridge" in text
+    assert "当前可用技能列表里没有 autoresearch skill" in text
+    assert "旧的 `skillsSnapshot`" in text
