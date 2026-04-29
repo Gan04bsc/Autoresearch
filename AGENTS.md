@@ -65,6 +65,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 生成研究工作台知识页。
 - 导出 AutoWiki-compatible vault。
 - 通过 `topic-run` 记录可恢复的一键流程状态。
+- 通过 `sync-library` 把 workspace 产物同步进全局 `library.db`。
 - 可选生成报告草稿。
 - 输出 `audit` 和 `inspect-workspace` 质量信号。
 
@@ -154,6 +155,30 @@ plan -> search -> dedup -> review-selection -> download -> parse -> classify -> 
 后续 OpenClaw 不应直接自由执行 shell，而应只调用 `topic-run`、`status`、`inspect-workspace`、
 `export-wiki`、未来 `job status` 等白名单命令。
 
+## 全局文献库规则
+
+`library.db` 是长期资产层。它用于跨 workspace 复用文献、topic membership 和 evidence，
+不替代 workspace 中的原始产物。
+
+核心原则：
+
+- Paper 是全局唯一资产。
+- Topic 是 paper 的一个研究视角。
+- Run 是某次调研执行。
+- Evidence 必须挂到 paper 和 topic，不能变成无来源的总结。
+- workspace 仍保留 `raw_results`、`selected_papers`、PDF、Markdown、notes、knowledge、
+  evidence table 和 audit 产物。
+
+当前同步命令：
+
+```bash
+litagent sync-library WORKSPACE --library-db ~/.autoresearch/library.db --topic-slug TOPIC
+litagent library-status --library-db ~/.autoresearch/library.db --json
+```
+
+同步只读取已有 workspace，不调用网络、不下载、不解析。不要把 `.env`、API key 或用户私密
+笔记写入全局库；当前实现只同步论文元数据、topic membership、run 摘要和 evidence spans。
+
 ## 论文角色和阅读意图
 
 `paper_role` 用来描述论文在知识库中的功能：
@@ -225,6 +250,7 @@ plan -> search -> dedup -> review-selection -> download -> parse -> classify -> 
 - Dedup latest search run: `litagent dedup WORKSPACE --search-scope latest --max-papers N`
 - Provider smoke test: `litagent provider-smoke semantic-scholar --json`
 - Topic run: `litagent topic-run "TOPIC" --workspace WORKSPACE --max-papers N`
+- Sync library: `litagent sync-library WORKSPACE --library-db ~/.autoresearch/library.db`
 
 ## 完成标准
 

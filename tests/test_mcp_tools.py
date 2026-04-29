@@ -23,6 +23,8 @@ def test_tool_definitions_include_agent_workflow_tools() -> None:
     assert "litagent_review_selection" in names
     assert "litagent_build_evidence" in names
     assert "litagent_export_wiki" in names
+    assert "litagent_sync_library" in names
+    assert "litagent_library_status" in names
 
 
 def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:
@@ -40,6 +42,18 @@ def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:
     review = call_tool("litagent_review_selection", {"workspace": str(workspace)})
     status = call_tool("litagent_status", {"workspace": str(workspace)})
     inspection = call_tool("litagent_inspect_workspace", {"workspace": str(workspace)})
+    library = call_tool(
+        "litagent_sync_library",
+        {
+            "workspace": str(workspace),
+            "library_db": str(workspace / "library.db"),
+            "topic_slug": "mcp-topic",
+        },
+    )
+    library_status = call_tool(
+        "litagent_library_status",
+        {"library_db": str(workspace / "library.db")},
+    )
 
     assert plan["ok"]
     assert search["raw_results"] >= 5
@@ -49,6 +63,8 @@ def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:
     assert status["counts"]["selected_papers"] == 3
     assert inspection["quality_level"] == "smoke_test_run"
     assert "recommended_next_action" in inspection
+    assert library["papers_synced"] == 3
+    assert library_status["counts"]["papers"] == 3
     assert len(read_jsonl(workspace / "data" / "selected_papers.jsonl")) == 3
 
 

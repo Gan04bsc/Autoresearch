@@ -104,6 +104,8 @@ litagent audit ./my-topic
 litagent status ./my-topic --json
 litagent inspect-workspace ./my-topic --json
 litagent topic-run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mock
+litagent sync-library ./my-topic --library-db ~/.autoresearch/library.db --topic-slug my-topic --json
+litagent library-status --library-db ~/.autoresearch/library.db --json
 litagent run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mock
 litagent run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mineru-mode auto
 ```
@@ -156,6 +158,38 @@ litagent topic-run "agentic literature review automation" \
 
 这个命令不是让 `litagent` 接管最终研究判断。它只负责稳定执行、记录状态和生成可检查产物；
 Codex / Agent 仍必须检查 `review-selection`、证据质量、知识页、来源多样性和中文材料质量。
+
+## Global Library MVP
+
+`library.db` 是长期文献资产层，用来把“全局唯一 paper”和“某个 topic 的阅读视角”分开。
+workspace 仍然保存一次具体调研的原始产物；全局库负责跨 topic 去重、主题归属和证据复用。
+
+同步已有 workspace：
+
+```bash
+litagent sync-library ./my-topic \
+  --library-db ~/.autoresearch/library.db \
+  --topic-slug my-topic \
+  --json
+```
+
+查看全局库：
+
+```bash
+litagent library-status --library-db ~/.autoresearch/library.db --json
+```
+
+当前 SQLite 表包括：
+
+- `papers`：全局唯一论文，保存 DOI、arXiv ID、Semantic Scholar ID、OpenAlex ID、PDF
+  路径和 parsed Markdown 路径。
+- `topics`：研究主题。
+- `topic_papers`：某篇论文在某个 topic 下的角色、阅读意图、相关性和选择理由。
+- `runs`：一次调研运行的状态、workspace、搜索批次和质量标签。
+- `evidence_spans`：可复查证据片段，挂到 paper 和 topic。
+
+同步命令只读取已有 workspace 文件，不调用网络、不下载、不解析，也不会写入 API key。
+它是后续任务队列（job queue）、OpenClaw 手机端状态、增量更新和跨主题复用的基础。
 
 ## Semantic Scholar API 配置
 

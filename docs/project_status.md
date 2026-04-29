@@ -87,6 +87,28 @@ plan -> search -> dedup -> review-selection -> download -> parse -> classify -> 
 3. 增加本地任务队列（job queue），只暴露白名单命令给 OpenClaw。
 4. 再接 OpenClaw Research Skill、Obsidian 增量同步和音频摘要。
 
+当前已经进入第二步的 MVP：`litagent sync-library` 可以把已有 workspace 产物同步到
+SQLite `library.db`。
+
+全局库当前表结构：
+
+- `papers`：全局唯一论文。
+- `topics`：研究主题。
+- `topic_papers`：论文在某个 topic 下的角色、阅读意图、相关性和选择理由。
+- `runs`：一次调研运行的状态、workspace、搜索批次和质量标签。
+- `evidence_spans`：挂到 paper 和 topic 的证据片段。
+
+命令：
+
+```bash
+litagent sync-library WORKSPACE --library-db ~/.autoresearch/library.db --topic-slug TOPIC
+litagent library-status --library-db ~/.autoresearch/library.db --json
+```
+
+当前实现仍是同步层，不会改变 workspace 主流程，也不会自动替代 `selected_papers.jsonl`、
+`library/notes` 或 `knowledge/evidence_table.*`。下一步 job queue 应复用这些状态和库表，
+而不是让 OpenClaw 直接执行任意 shell。
+
 ## 论文角色和阅读意图
 
 当前采用双层分类。

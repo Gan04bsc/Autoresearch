@@ -405,6 +405,11 @@
   `--force` to rerun all steps, and `--from-step` to rerun a step plus downstream steps.
 - `topic-run` defaults to local pypdf parsing through `--mineru-mode off`; MinerU remains an
   explicit opt-in for OCR-heavy, table-heavy, or complex-layout PDFs.
+- Added the first global library MVP with `litagent sync-library` and `litagent library-status`.
+  The SQLite `library.db` separates global `papers` from topic-specific `topic_papers`, stores
+  `topics`, `runs`, and `evidence_spans`, and keeps evidence attached to both paper and topic.
+- Added MCP tools `litagent_sync_library` and `litagent_library_status` so Codex can sync an
+  inspected workspace into the long-term library without running network, download, or parse.
 
 ## Known Issues
 
@@ -437,15 +442,17 @@
 Do not expand to larger real reviews yet. Next work should focus on backend reliability and
 research workspace quality:
 
-1. Stabilize `litagent topic-run` as the local one-command workflow before connecting OpenClaw.
-2. Use `./demo-real-v3` as the evidence-quality regression baseline.
-3. Use `./demo-real-v4` as the source-diversity regression baseline.
-4. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
+1. Stabilize `litagent topic-run` and `sync-library` as local backend primitives before connecting
+   OpenClaw.
+2. Add a local job queue on top of `topic-run`, not arbitrary shell execution.
+3. Use `./demo-real-v3` as the evidence-quality regression baseline.
+4. Use `./demo-real-v4` as the source-diversity regression baseline.
+5. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
    real Obsidian/AutoWiki maintenance workflow.
-5. Treat `litagent export-wiki` as artifact packaging only; use Codex/AutoWiki skill for actual
+6. Treat `litagent export-wiki` as artifact packaging only; use Codex/AutoWiki skill for actual
    milestone/topic/source synthesis.
-6. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
+7. Improve field maps, method matrices, benchmark matrices, and innovation opportunities before
    further optimizing `final_report.md`.
-7. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
+8. Keep AutoWiki-skill as the wiki organization layer; do not let it replace litagent search,
    download, parse, or evidence extraction.
 

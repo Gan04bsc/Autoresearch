@@ -50,6 +50,32 @@ litagent topic-run "agentic literature review automation" \
   --mock
 ```
 
+## global library
+
+修改全局文献库、topic workspace、OpenClaw 准备层或同步逻辑时，检查：
+
+- `litagent sync-library WORKSPACE --library-db PATH --json` 是否只读取已有 workspace 产物。
+- 是否不调用网络、不下载 PDF、不重新解析 PDF。
+- 是否创建或迁移 SQLite schema。
+- `papers` 是否保存全局唯一 paper，而不是按 topic 重复造 paper。
+- `topics` 是否保存 topic 视角。
+- `topic_papers` 是否保存 `paper_role`、`reading_intent`、相关性分数和选择理由。
+- `runs` 是否保存 workspace、run 状态、search run id、selected count 和 quality label。
+- `evidence_spans` 是否保存 paper_id、topic_id、section、snippet、score 和 quality flags。
+- 重复运行 sync 是否幂等，不重复插入同一个 topic-paper 或 evidence span。
+- `library-status` 是否能显示 papers、topics、topic_papers、runs 和 evidence_spans 数量。
+- 同步输出、错误日志和数据库内容是否不包含 API key、Bearer token 或 `.env` 内容。
+
+最小非网络回归命令：
+
+```bash
+litagent sync-library .tmp/topic-run-smoke \
+  --library-db .tmp/autoresearch-library.db \
+  --topic-slug topic-run-smoke \
+  --json
+litagent library-status --library-db .tmp/autoresearch-library.db --json
+```
+
 ## search / ranking
 
 检查项：

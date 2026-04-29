@@ -11,6 +11,11 @@ from litagent.downloader import download_pdfs
 from litagent.evidence import build_evidence_table
 from litagent.inspect import inspect_workspace, inspect_workspace_markdown
 from litagent.knowledge import build_knowledge
+from litagent.library_db import (
+    default_library_db_path,
+    inspect_library,
+    sync_workspace_to_library,
+)
 from litagent.mineru import parse_selected_pdfs
 from litagent.pipeline import run_pipeline
 from litagent.planner import write_research_plan
@@ -255,6 +260,36 @@ def topic_run_command(args: argparse.Namespace) -> int:
     return 0 if state["status"] == "succeeded" else 1
 
 
+def sync_library_command(args: argparse.Namespace) -> int:
+    result = sync_workspace_to_library(
+        args.workspace,
+        db_path=args.library_db,
+        topic_slug=args.topic_slug,
+    )
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(f"Synced {result['papers_synced']} papers into library")
+        print(result["library_db"])
+        print(f"Topic: {result['topic_id']}")
+    return 0
+
+
+def library_status_command(args: argparse.Namespace) -> int:
+    result = inspect_library(args.library_db)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        counts = result["counts"]
+        print(f"Library: {result['library_db']}")
+        print(
+            "Counts: "
+            f"papers={counts['papers']} topics={counts['topics']} "
+            f"topic_papers={counts['topic_papers']} evidence_spans={counts['evidence_spans']}"
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic literature research workbench.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -456,6 +491,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Continue even if review-selection flags likely off-topic papers.",
     )
     topic_run_parser.set_defaults(func=topic_run_command)
+
+    sync_library_parser = subparsers.add_parser(
+        "sync-library",
+        help="Sync existing workspace artifacts into the global SQLite library.",
+    )
+    sync_library_parser.add_argument("workspace", type=Path)
+    sync_library_parser.add_argument(
+        "--library-db",
+        type=Path,
+        default=default_library_db_path(),
+        help="SQLite library path. Defaults to ~/.autoresearch/library.db.",
+    )
+    sync_library_parser.add_argument(
+        "--topic-slug",
+        help="Stable topic id/slug. Defaults to a slug or hash derived from research_plan topic.",
+    )
+    sync_library_parser.add_argument("--json", action="store_true")
+    sync_library_parser.set_defaults(func=sync_library_command)
+
+    library_status_parser = subparsers.add_parser(
+        "library-status",
+        help="Inspect the global SQLite literature library.",
+    )
+    library_status_parser.add_argument(
+        "--library-db",
+        type=Path,
+        default=default_library_db_path(),
+        help="SQLite library path. Defaults to ~/.autoresearch/library.db.",
+    )
+    library_status_parser.add_argument("--json", action="store_true")
+    library_status_parser.set_defaults(func=library_status_command)
 
     run_parser = subparsers.add_parser("run", help="Run the full research pipeline.")
     run_parser.add_argument("topic")

@@ -11,6 +11,11 @@ from litagent.downloader import download_pdfs
 from litagent.evidence import build_evidence_table
 from litagent.inspect import inspect_workspace
 from litagent.knowledge import build_knowledge
+from litagent.library_db import (
+    default_library_db_path,
+    inspect_library,
+    sync_workspace_to_library,
+)
 from litagent.mineru import parse_selected_pdfs
 from litagent.planner import write_research_plan
 from litagent.reader import generate_notes
@@ -231,6 +236,36 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "required": ["workspace", "out_dir"],
             },
         },
+        {
+            "name": "litagent_sync_library",
+            "description": (
+                "Sync existing workspace artifacts into the global SQLite literature library. "
+                "This does not call network, download, or parse."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "workspace": workspace,
+                    "library_db": text_schema(
+                        "SQLite library path. Defaults to ~/.autoresearch/library.db."
+                    ),
+                    "topic_slug": text_schema("Optional stable topic id/slug."),
+                },
+                "required": ["workspace"],
+            },
+        },
+        {
+            "name": "litagent_library_status",
+            "description": "Inspect global SQLite literature library counts and topics.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "library_db": text_schema(
+                        "SQLite library path. Defaults to ~/.autoresearch/library.db."
+                    ),
+                },
+            },
+        },
     ]
 
 
@@ -244,7 +279,11 @@ def as_workspace(arguments: dict[str, Any]) -> Path:
 
 def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
     arguments = arguments or {}
-    workspace = as_workspace(arguments) if name != "litagent_plan" else Path(arguments["workspace"])
+    workspace = (
+        as_workspace(arguments)
+        if name not in {"litagent_plan", "litagent_library_status"}
+        else Path(arguments.get("workspace", "."))
+    )
 
     if name == "litagent_plan":
         plan = write_research_plan(
@@ -319,6 +358,17 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
             Path(str(arguments["out_dir"])),
             export_format=str(arguments.get("format") or "autowiki"),
         )
+        return {"ok": True, **result}
+    if name == "litagent_sync_library":
+        result = sync_workspace_to_library(
+            workspace,
+            db_path=Path(str(arguments.get("library_db") or default_library_db_path())),
+            topic_slug=arguments.get("topic_slug"),
+        )
+        return {"ok": True, **result}
+    if name == "litagent_library_status":
+        library_db = Path(str(arguments.get("library_db") or default_library_db_path()))
+        result = inspect_library(library_db)
         return {"ok": True, **result}
 
     msg = f"Unknown litagent MCP tool: {name}"
