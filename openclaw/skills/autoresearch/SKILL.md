@@ -51,6 +51,23 @@ command: litagent library-status --json
 不要为了执行该命令而调用 `powershell`、`cmd /c`、`sh -c`、`python -c`、`curl`、`wget` 或任意
 自由 shell 包装器。不要读取或输出 `.env`、API key、QQ token、cookie、session 文件或完整日志。
 
+如果宿主 QQBot 已启用 native Autoresearch bridge，它会在 agent 分发前拦截以下精确命令并执行固定
+`litagent` 参数数组：
+
+```text
+/research new <topic> [--mock] [--real] [--max-papers N]
+/research list
+/research run-next
+/research status [job_id]
+/research logs [job_id]
+/research library
+```
+
+其中 `/research new` 默认使用 `--mock`，只有用户显式传入 `--real` 才创建真实检索任务。
+`job_id` 外面的尖括号只是占位符；native bridge 应兼容 `/research logs <job-...>`，但推荐直接发送
+`/research logs job-...`。如果 `/research status` 不带 `job_id`，应返回最近任务列表；如果
+`/research logs` 不带 `job_id`，应返回最近任务和正确用法。
+
 ## Core Boundary
 
 - OpenClaw 是入口和通知层。

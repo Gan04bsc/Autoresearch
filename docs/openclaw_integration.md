@@ -325,6 +325,45 @@ Get-Content "C:\Windows\TEMP\openclaw\openclaw-2026-04-29.log" -Tail 300 |
 
 成功时，QQ 应直接返回文献库统计，而不是“我先帮你查”或“无法直接执行”。
 
+当前 native bridge 的推荐手机端 smoke 顺序：
+
+```text
+/research new agentic literature review automation --mock
+/research list
+/research run-next
+/research status <job_id>
+/research library
+/research logs <job_id>
+```
+
+`<job_id>` 中的尖括号只是占位符。当前 bridge 已兼容 `/research logs <job-...>`，
+但推荐手机端直接发送不带尖括号的真实 id：
+
+```text
+/research logs job-20260429T140315Z-25c5e1e4
+```
+
+实现边界：
+
+- `/research new` 默认创建 mock job，避免手机端误触真实检索和外部 API。
+- 只有显式使用 `--real` 才创建真实检索任务，例如
+  `/research new 多智能体文献调研自动化工具 --real --max-papers 10`。
+- `/research run-next` 仍是前台执行，真实任务可能超过聊天响应时间；真实后台 runner 后续应独立实现。
+- `/research status` 不带 job id 时返回最近任务列表；`/research logs` 不带 job id 时返回最近任务和正确用法。
+- `job_id` 解析会去掉 ASCII / full-width 尖括号，因此 `/research logs <job-...>` 和
+  `/research logs job-...` 都可用。
+- 参数解析错误会直接回到手机端，不应再静默卡住。
+- bridge 只构造固定 `litagent` 参数数组，不把用户文本拼进自由 shell。
+
+2026-04-29 手机端 mock smoke 已跑通：
+
+- `/research new ... --mock` 创建 queued job。
+- `/research run-next` 执行 `topic-run` mock workflow 并成功结束。
+- 成功任务自动 `sync-library`，`/research library` 可看到 5 papers、1 topic、1 run、10 evidence spans。
+- `/research logs job-20260429T140315Z-25c5e1e4` 返回 `succeeded`，最近事件包括
+  `job_created`、`job_started`、`job_succeeded`，最近步骤包括 `export-wiki`、`audit` 和
+  `inspect-workspace` 的 succeeded 记录。
+
 ## `/research library` 报 `litagent.cmd` 不是内部或外部命令时
 
 如果 QQBot 返回类似：

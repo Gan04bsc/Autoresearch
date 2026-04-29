@@ -455,6 +455,31 @@
   `AUTORESEARCH_LITAGENT_BIN=D:\study\Autoresearch\.venv\Scripts\litagent.exe`, then restarted
   OpenClaw gateway. `openclaw health` is OK, QQBot WebSocket reconnected, and Node `execFile`
   against the fixed `litagent.exe` returns the expected library JSON.
+- Extended the QQBot native Autoresearch bridge from `/research library` to the safe mobile smoke
+  loop: `/research new <topic> [--mock|--real] [--max-papers N]`, `/research list`,
+  `/research run-next`, `/research status <job_id>`, and `/research logs <job_id>`.
+- `/research new` now defaults to mock mode in the bridge; real external API jobs require explicit
+  `--real`, e.g. `/research new 多智能体文献调研自动化工具 --real --max-papers 10`.
+- Synced the rebuilt QQBot `gateway.ts` and `dist/src/gateway.js` into the real
+  `%USERPROFILE%\.openclaw\extensions\qqbot` runtime directory, backed up the previous files, and
+  restarted OpenClaw. `openclaw health` remains OK and QQBot reports `Gateway ready`.
+- Verified the underlying mock job loop with a temporary jobs/library DB:
+  create -> list -> run-next -> status -> logs -> library-status. The mock run completed and synced
+  5 papers, 1 topic, 1 run, and 10 evidence spans.
+- Passed QQBot bridge typecheck: `npx tsc --noEmit` in `.openclaw/extensions/qqbot`.
+- Fixed a phone-side `/research logs <job_id>` hang: the bridge treated literal angle brackets
+  around `<job-...>` as part of the id, threw before sending a reply, and only logged
+  `job_id 格式不合法`. The parser now strips ASCII/full-width angle brackets, `/research status`
+  without an id maps to recent job list, `/research logs` without an id returns recent jobs plus
+  usage guidance, and parse errors are returned to the user instead of silently failing.
+- Synced the fix to the real `%USERPROFILE%\.openclaw\extensions\qqbot` runtime and restarted
+  OpenClaw; QQBot reported `Gateway ready`.
+- Confirmed the phone-side mock smoke workflow is now complete:
+  `/research new ... --mock` created a queued job, `/research run-next` completed it,
+  successful `sync-library` updated the global library, `/research library` returned the updated
+  counts, and `/research logs job-20260429T140315Z-25c5e1e4` returned a succeeded log summary with
+  `job_created`, `job_started`, `job_succeeded`, plus final `export-wiki`, `audit`, and
+  `inspect-workspace` succeeded steps.
 - Confirmed the phone-side `/research library` command now returns the direct native bridge
   summary: 5 papers, 1 topic, 1 run, 10 evidence spans, with latest topic
   `agentic literature review automation`.
@@ -495,10 +520,12 @@ research workspace quality:
 1. Verify the host OpenClaw/QQ bot configuration outside the `/app` container and append
    `openclaw/skills` to the actual host skill path.
 2. Promote the local QQBot `/research library` native bridge into a durable OpenClaw extension or
-   host patch, then add equally narrow mappings for `/research list`,
-   `/research status <job_id>`, and `/research run-next`.
+   host patch. The local host now has narrow mappings for new/list/run-next/status/logs/library;
+   the phone-side mock loop has been exercised, so the next step is to make the patch durable
+   across OpenClaw extension updates and add a `/research result <job_id>` style summary endpoint.
 3. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before giving
-   OpenClaw real tasks.
+   OpenClaw larger real tasks. A next safe real check should be small, explicit, and user-triggered,
+   e.g. `/research new 多智能体文献调研自动化工具 --real --max-papers 10`.
 4. Use `./demo-real-v3` as the evidence-quality regression baseline.
 5. Use `./demo-real-v4` as the source-diversity regression baseline.
 6. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
