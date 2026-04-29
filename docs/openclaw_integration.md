@@ -10,6 +10,12 @@
 - 没有发现 `openclaw` 可执行文件。
 - 没有发现 `powershell.exe` 或 Windows 盘挂载。
 - 没有直接访问到宿主机 OpenClaw 配置和 QQ bot 配置。
+- 用户加入的 `openclaw/Openclaw/OpenClaw.app` 是 macOS 应用包，版本为 `2026.3.2`，
+  其二进制是 Mach-O universal binary，不能在当前 Linux 容器中直接运行。
+- 用户加入的 `openclaw/Openclaw/qqbot/` 是外部 QQBot channel 插件源码，
+  包名为 `@sliverp/qqbot`，插件 ID 为 `qqbot`，不是 Autoresearch skill 本身。
+- QQBot 插件读取 `channels.qqbot.appId` / `channels.qqbot.clientSecret`，
+  也支持 `QQBOT_APP_ID` / `QQBOT_CLIENT_SECRET` 环境变量；不要把这些值写入仓库。
 - Codex 规则历史里出现过 Windows 侧 `openclaw config ...` 命令，以及
   `D:/study/AI安全/AutoWiki-skill/skills` 这样的 AutoWiki-skill 路径。
 
