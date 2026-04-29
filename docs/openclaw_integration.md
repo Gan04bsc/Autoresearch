@@ -293,3 +293,34 @@ Get-Content "C:\Windows\TEMP\openclaw\openclaw-2026-04-29.log" -Tail 300 |
 ```
 
 成功时，allowlist 的 `Last Used` 应更新，日志中应出现 `exec` / `litagent` 相关记录。
+
+如果重置 session、更新 skill 描述和 approvals 后仍然只回复占位话术，不要继续调提示词。
+这时应改成确定性的 native command bridge：在 QQBot channel 收到精确的
+`/research library` 时，先于 agent 分发直接执行固定命令：
+
+```text
+litagent library-status --json
+```
+
+实现要求：
+
+- 只匹配精确的 `/research library`，不要把任意用户文本拼进命令。
+- 使用固定参数数组或固定命令行，不开放任意 shell executor。
+- 只允许 `litagent`、`litagent.exe`、`litagent.cmd` 或 `litagent.bat` 作为执行入口。
+- 输出只摘要 `papers`、`topics`、`runs`、`evidence_spans` 和最近 topic。
+- 不读取、不打印 `.env`、API key、QQ token、cookie、session transcript 或完整日志。
+
+注意：native bridge 不会经过 OpenClaw 的 `exec` tool，所以
+`openclaw approvals get --gateway` 的 `Last Used` 可能仍然是 `unknown`。这不是失败信号。
+新的验证方式是：
+
+```powershell
+openclaw gateway restart
+# 在 QQ 发送：
+# /research library
+
+Get-Content "C:\Windows\TEMP\openclaw\openclaw-2026-04-29.log" -Tail 300 |
+  Select-String -Pattern "autoresearch bridge|library-status|litagent|error"
+```
+
+成功时，QQ 应直接返回文献库统计，而不是“我先帮你查”或“无法直接执行”。

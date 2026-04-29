@@ -441,6 +441,11 @@
 - Updated `docs/openclaw_integration.md` with the “skill understood but only placeholder reply”
   failure mode and the exact verification signal: approvals `Last Used` should change and logs
   should contain `exec` / `litagent` records after a successful run.
+- Added and verified a local QQBot native bridge patch for the precise `/research library`
+  command in the ignored `.openclaw/extensions/qqbot` runtime source. The bridge intercepts the
+  command before agent dispatch, runs only `litagent library-status --json`, summarizes the JSON
+  counts in Chinese, and records `autoresearch bridge` in logs. Because this path bypasses the
+  OpenClaw `exec` tool, approval `Last Used` is no longer the success signal for this mode.
 
 ## Known Issues
 
@@ -475,9 +480,9 @@ research workspace quality:
 
 1. Verify the host OpenClaw/QQ bot configuration outside the `/app` container and append
    `openclaw/skills` to the actual host skill path.
-2. Add a safe OpenClaw command bridge/native command mapping for `/research library`,
-   `/research list`, `/research status <job_id>`, and `/research run-next`, or explicitly use a
-   constrained `coding-agent` fallback for one command at a time.
+2. Promote the local QQBot `/research library` native bridge into a durable OpenClaw extension or
+   host patch, then add equally narrow mappings for `/research list`,
+   `/research status <job_id>`, and `/research run-next`.
 3. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before giving
    OpenClaw real tasks.
 4. Use `./demo-real-v3` as the evidence-quality regression baseline.

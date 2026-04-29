@@ -34,3 +34,6 @@ def test_openclaw_integration_doc_requires_host_verification() -> None:
     assert "command bridge" in text
     assert "当前可用技能列表里没有 autoresearch skill" in text
     assert "旧的 `skillsSnapshot`" in text
+    assert "native command bridge" in text
+    assert "autoresearch bridge" in text
+    assert "Last Used` 可能仍然是 `unknown`" in text
