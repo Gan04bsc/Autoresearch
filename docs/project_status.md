@@ -109,6 +109,24 @@ litagent library-status --library-db ~/.autoresearch/library.db --json
 `library/notes` 或 `knowledge/evidence_table.*`。下一步 job queue 应复用这些状态和库表，
 而不是让 OpenClaw 直接执行任意 shell。
 
+当前已经进入第三步的 MVP：`litagent job` 提供本地 SQLite 任务队列。
+
+命令：
+
+```bash
+litagent job create --topic "多模态模型" --workspace ~/.autoresearch/topics/multimodal-models
+litagent job status JOB_ID --json
+litagent job list --json
+litagent job cancel JOB_ID --json
+litagent job logs JOB_ID --json
+litagent job run-next --json
+```
+
+`jobs.db` 当前只支持白名单 `topic-run` job。`job run-next` 以前台方式运行最早的 queued
+job；如果创建任务时传入 `--sync-library`，成功后会同步到 `library.db`。这一步为 OpenClaw
+提供安全接口，但还不是完整后台 daemon。后续可以在此基础上加 worker、进度通知和手机端
+消息映射。
+
 ## 论文角色和阅读意图
 
 当前采用双层分类。

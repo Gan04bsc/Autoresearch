@@ -76,6 +76,36 @@ litagent sync-library .tmp/topic-run-smoke \
 litagent library-status --library-db .tmp/autoresearch-library.db --json
 ```
 
+## job queue / OpenClaw readiness
+
+修改任务队列、OpenClaw 接入、后台执行或 CLI 编排时，检查：
+
+- `litagent job create` 是否只创建 queued job，不立即执行真实检索。
+- `litagent job status JOB_ID --json` 是否能返回 job 状态、topic、workspace 和 payload。
+- `litagent job list --json` 是否能列出最近任务。
+- `litagent job cancel JOB_ID --json` 是否能取消 queued job。
+- `litagent job logs JOB_ID --json` 是否能返回 job events 和 `run_log.jsonl`。
+- `litagent job run-next --json` 是否只运行最早的 queued job。
+- job payload 是否只包含白名单 `topic-run` 参数。
+- job queue 是否不允许任意 shell command。
+- `--sync-library` 是否只在 topic-run 成功后同步 `library.db`。
+- job 错误是否脱敏，不泄露 API key、Bearer token 或 `.env` 内容。
+- OpenClaw 设计是否仍是入口和通知层，而不是研究判断层或任意 shell 执行器。
+
+最小非网络回归命令：
+
+```bash
+litagent job create \
+  --jobs-db .tmp/jobs.db \
+  --topic "agentic literature review automation" \
+  --workspace .tmp/job-topic \
+  --max-papers 5 \
+  --mock \
+  --json
+litagent job run-next --jobs-db .tmp/jobs.db --json
+litagent job list --jobs-db .tmp/jobs.db --json
+```
+
 ## search / ranking
 
 检查项：

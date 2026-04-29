@@ -10,6 +10,15 @@ from litagent.dedup import dedup_and_rank
 from litagent.downloader import download_pdfs
 from litagent.evidence import build_evidence_table
 from litagent.inspect import inspect_workspace, inspect_workspace_markdown
+from litagent.job_queue import (
+    cancel_job,
+    create_job,
+    default_jobs_db_path,
+    get_job,
+    job_logs,
+    list_jobs,
+    run_next_job,
+)
 from litagent.knowledge import build_knowledge
 from litagent.library_db import (
     default_library_db_path,
@@ -290,6 +299,91 @@ def library_status_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def print_json_or_text(args: argparse.Namespace, result: dict) -> int:
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        job = result.get("job")
+        if job:
+            print(f"Job: {job['id']}")
+            print(f"Status: {job['status']}")
+            print(f"Topic: {job['topic']}")
+            print(f"Workspace: {job['workspace']}")
+            if job.get("last_error"):
+                print(f"Last error: {job['last_error']}")
+        else:
+            print(result.get("message") or "No job")
+    return 0 if result.get("ok", True) else 1
+
+
+def job_create_command(args: argparse.Namespace) -> int:
+    result = create_job(
+        jobs_db=args.jobs_db,
+        topic=args.topic,
+        workspace=args.workspace,
+        max_papers=args.max_papers,
+        max_results_per_source=args.max_results_per_source,
+        mock=args.mock,
+        mineru_mode=args.mineru_mode,
+        mineru_timeout=args.mineru_timeout,
+        search_run_id=args.run_id,
+        search_scope=args.search_scope,
+        wiki_out=args.wiki_out,
+        allow_selection_concerns=args.allow_selection_concerns,
+        sync_library=args.sync_library,
+        library_db=args.library_db,
+        topic_slug=args.topic_slug,
+    )
+    return print_json_or_text(args, result)
+
+
+def job_status_command(args: argparse.Namespace) -> int:
+    result = {
+        "ok": True,
+        "jobs_db": str(args.jobs_db),
+        "job": get_job(args.job_id, jobs_db=args.jobs_db),
+    }
+    return print_json_or_text(args, result)
+
+
+def job_list_command(args: argparse.Namespace) -> int:
+    result = list_jobs(jobs_db=args.jobs_db, status=args.status, limit=args.limit)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        for job in result["jobs"]:
+            print(f"{job['id']}\t{job['status']}\t{job['topic']}\t{job['workspace']}")
+        if not result["jobs"]:
+            print("No jobs")
+    return 0
+
+
+def job_cancel_command(args: argparse.Namespace) -> int:
+    result = cancel_job(args.job_id, jobs_db=args.jobs_db)
+    return print_json_or_text(args, result)
+
+
+def job_logs_command(args: argparse.Namespace) -> int:
+    result = job_logs(args.job_id, jobs_db=args.jobs_db)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        job = result["job"]
+        print(f"Job: {job['id']} ({job['status']})")
+        print("Events:")
+        for event in result["events"]:
+            print(f"- {event['at']} {event['event']} {event['payload']}")
+        print("Run log:")
+        for row in result["run_log"][-20:]:
+            print(f"- {row}")
+    return 0
+
+
+def job_run_next_command(args: argparse.Namespace) -> int:
+    result = run_next_job(jobs_db=args.jobs_db)
+    return print_json_or_text(args, result)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic literature research workbench.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -522,6 +616,94 @@ def build_parser() -> argparse.ArgumentParser:
     )
     library_status_parser.add_argument("--json", action="store_true")
     library_status_parser.set_defaults(func=library_status_command)
+
+    job_parser = subparsers.add_parser(
+        "job",
+        help="Manage local SQLite jobs for safe OpenClaw/mobile orchestration.",
+    )
+    job_subparsers = job_parser.add_subparsers(dest="job_command", required=True)
+
+    def add_jobs_db_argument(command_parser: argparse.ArgumentParser) -> None:
+        command_parser.add_argument(
+            "--jobs-db",
+            type=Path,
+            default=default_jobs_db_path(),
+            help="SQLite jobs database path. Defaults to ~/.autoresearch/jobs.db.",
+        )
+
+    job_create_parser = job_subparsers.add_parser(
+        "create",
+        help="Create a queued topic-run job.",
+    )
+    add_jobs_db_argument(job_create_parser)
+    job_create_parser.add_argument("--topic", required=True)
+    job_create_parser.add_argument("--workspace", type=Path, required=True)
+    job_create_parser.add_argument("--max-papers", type=int, default=30)
+    job_create_parser.add_argument("--max-results-per-source", type=int, default=50)
+    job_create_parser.add_argument("--mock", action="store_true")
+    job_create_parser.add_argument(
+        "--mineru-mode",
+        choices=["off", "agent", "precision", "auto"],
+        default="off",
+    )
+    job_create_parser.add_argument("--mineru-timeout", type=int, default=300)
+    job_create_parser.add_argument("--run-id")
+    job_create_parser.add_argument(
+        "--search-scope",
+        choices=["latest", "all", "selected"],
+        default="latest",
+    )
+    job_create_parser.add_argument("--wiki-out", type=Path)
+    job_create_parser.add_argument("--allow-selection-concerns", action="store_true")
+    job_create_parser.add_argument(
+        "--sync-library",
+        action="store_true",
+        help="Sync completed workspace into library.db after topic-run succeeds.",
+    )
+    job_create_parser.add_argument(
+        "--library-db",
+        type=Path,
+        default=default_library_db_path(),
+    )
+    job_create_parser.add_argument("--topic-slug")
+    job_create_parser.add_argument("--json", action="store_true")
+    job_create_parser.set_defaults(func=job_create_command)
+
+    job_status_parser = job_subparsers.add_parser("status", help="Show one job.")
+    add_jobs_db_argument(job_status_parser)
+    job_status_parser.add_argument("job_id")
+    job_status_parser.add_argument("--json", action="store_true")
+    job_status_parser.set_defaults(func=job_status_command)
+
+    job_list_parser = job_subparsers.add_parser("list", help="List recent jobs.")
+    add_jobs_db_argument(job_list_parser)
+    job_list_parser.add_argument(
+        "--status",
+        choices=["queued", "running", "succeeded", "failed", "cancelled"],
+    )
+    job_list_parser.add_argument("--limit", type=int, default=20)
+    job_list_parser.add_argument("--json", action="store_true")
+    job_list_parser.set_defaults(func=job_list_command)
+
+    job_cancel_parser = job_subparsers.add_parser("cancel", help="Cancel a queued job.")
+    add_jobs_db_argument(job_cancel_parser)
+    job_cancel_parser.add_argument("job_id")
+    job_cancel_parser.add_argument("--json", action="store_true")
+    job_cancel_parser.set_defaults(func=job_cancel_command)
+
+    job_logs_parser = job_subparsers.add_parser("logs", help="Show job events and run log.")
+    add_jobs_db_argument(job_logs_parser)
+    job_logs_parser.add_argument("job_id")
+    job_logs_parser.add_argument("--json", action="store_true")
+    job_logs_parser.set_defaults(func=job_logs_command)
+
+    job_run_next_parser = job_subparsers.add_parser(
+        "run-next",
+        help="Run the oldest queued job in the foreground.",
+    )
+    add_jobs_db_argument(job_run_next_parser)
+    job_run_next_parser.add_argument("--json", action="store_true")
+    job_run_next_parser.set_defaults(func=job_run_next_command)
 
     run_parser = subparsers.add_parser("run", help="Run the full research pipeline.")
     run_parser.add_argument("topic")

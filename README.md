@@ -106,6 +106,9 @@ litagent inspect-workspace ./my-topic --json
 litagent topic-run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mock
 litagent sync-library ./my-topic --library-db ~/.autoresearch/library.db --topic-slug my-topic --json
 litagent library-status --library-db ~/.autoresearch/library.db --json
+litagent job create --topic "多模态模型" --workspace ~/.autoresearch/topics/multimodal-models --json
+litagent job status JOB_ID --json
+litagent job run-next --json
 litagent run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mock
 litagent run "agentic literature review tools" --workspace ./my-topic --max-papers 30 --mineru-mode auto
 ```
@@ -190,6 +193,36 @@ litagent library-status --library-db ~/.autoresearch/library.db --json
 
 同步命令只读取已有 workspace 文件，不调用网络、不下载、不解析，也不会写入 API key。
 它是后续任务队列（job queue）、OpenClaw 手机端状态、增量更新和跨主题复用的基础。
+
+## Job Queue MVP
+
+`jobs.db` 是本地任务队列层，用于把手机/OpenClaw 请求转成受控的后台任务。它不执行任意
+shell，只保存并运行白名单 `topic-run` job。
+
+创建任务：
+
+```bash
+litagent job create \
+  --topic "多模态模型" \
+  --workspace ~/.autoresearch/topics/multimodal-models \
+  --max-papers 50 \
+  --sync-library \
+  --json
+```
+
+查询、取消、查看日志、运行队列：
+
+```bash
+litagent job status JOB_ID --json
+litagent job list --json
+litagent job cancel JOB_ID --json
+litagent job logs JOB_ID --json
+litagent job run-next --json
+```
+
+`job run-next` 会以前台方式运行最早的 `queued` job，并调用 `topic-run`。如果创建任务时加了
+`--sync-library`，成功后会同步到 `library.db`。后续 OpenClaw Research Skill 应只映射到
+这些 job 命令，而不是让聊天 Agent 自由执行 shell。
 
 ## Semantic Scholar API 配置
 

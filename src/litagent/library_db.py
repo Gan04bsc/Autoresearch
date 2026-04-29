@@ -26,6 +26,13 @@ def json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value or default)
+    except (TypeError, ValueError):
+        return default
+
+
 def topic_slug_from_name(name: str) -> str:
     slug = safe_slug(name, max_length=72)
     if slug and slug != "paper":
@@ -443,9 +450,9 @@ def upsert_evidence(
             str(item.get("claim") or item.get("theme") or ""),
             str(item.get("section") or "Unknown"),
             str(item.get("snippet") or ""),
-            float(item.get("confidence") or 0.0),
+            safe_float(item.get("confidence")),
             str(item.get("uncertainty_or_gap") or item.get("uncertainty") or ""),
-            float(item.get("snippet_score") or 0.0),
+            safe_float(item.get("snippet_score")),
             json_dumps(item.get("quality_flags") or []),
             str(item.get("theme") or "unknown"),
             str(workspace),

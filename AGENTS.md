@@ -66,6 +66,7 @@ Codex / Agent 是调度、判断、检查和中文综合层。它必须：
 - 导出 AutoWiki-compatible vault。
 - 通过 `topic-run` 记录可恢复的一键流程状态。
 - 通过 `sync-library` 把 workspace 产物同步进全局 `library.db`。
+- 通过 `job` 命令管理本地任务队列，为 OpenClaw 提供安全入口。
 - 可选生成报告草稿。
 - 输出 `audit` 和 `inspect-workspace` 质量信号。
 
@@ -154,6 +155,31 @@ plan -> search -> dedup -> review-selection -> download -> parse -> classify -> 
 
 后续 OpenClaw 不应直接自由执行 shell，而应只调用 `topic-run`、`status`、`inspect-workspace`、
 `export-wiki`、未来 `job status` 等白名单命令。
+
+## 本地 Job Queue 规则
+
+`jobs.db` 是 OpenClaw 接入前的本地任务队列层。它把手机或聊天入口的请求转换成明确的
+`topic-run` job，不允许任意 shell。
+
+白名单命令：
+
+```bash
+litagent job create --topic "TOPIC" --workspace WORKSPACE
+litagent job status JOB_ID --json
+litagent job list --json
+litagent job cancel JOB_ID --json
+litagent job logs JOB_ID --json
+litagent job run-next --json
+```
+
+规则：
+
+- `job create` 只创建 queued job，不立即启动真实检索。
+- `job run-next` 以前台方式运行最早的 queued job，内部调用 `topic-run`。
+- 如果需要长期库，创建任务时使用 `--sync-library`，成功后同步到 `library.db`。
+- OpenClaw 后续只应该映射 `/research new/status/cancel/logs/run-next` 到这些命令。
+- 不要把 OpenClaw 配成任意 shell executor。
+- 不要把 API key、`.env` 或私密笔记写入 job payload、日志或提交记录。
 
 ## 全局文献库规则
 
@@ -251,6 +277,7 @@ litagent library-status --library-db ~/.autoresearch/library.db --json
 - Provider smoke test: `litagent provider-smoke semantic-scholar --json`
 - Topic run: `litagent topic-run "TOPIC" --workspace WORKSPACE --max-papers N`
 - Sync library: `litagent sync-library WORKSPACE --library-db ~/.autoresearch/library.db`
+- Job queue: `litagent job create --topic "TOPIC" --workspace WORKSPACE`
 
 ## 完成标准
 

@@ -10,6 +10,15 @@ from litagent.dedup import dedup_and_rank
 from litagent.downloader import download_pdfs
 from litagent.evidence import build_evidence_table
 from litagent.inspect import inspect_workspace
+from litagent.job_queue import (
+    cancel_job,
+    create_job,
+    default_jobs_db_path,
+    get_job,
+    job_logs,
+    list_jobs,
+    run_next_job,
+)
 from litagent.knowledge import build_knowledge
 from litagent.library_db import (
     default_library_db_path,
@@ -266,6 +275,86 @@ def tool_definitions() -> list[dict[str, Any]]:
                 },
             },
         },
+        {
+            "name": "litagent_job_create",
+            "description": "Create a queued local topic-run job for safe orchestration.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "topic": text_schema("Research topic."),
+                    "workspace": workspace,
+                    "jobs_db": text_schema("SQLite jobs database path."),
+                    "max_papers": int_schema("Maximum selected papers.", 30),
+                    "max_results_per_source": int_schema("Results per source.", 50),
+                    "mock": bool_schema("Use mock search providers."),
+                    "sync_library": bool_schema("Sync workspace into library after success."),
+                    "library_db": text_schema("SQLite library path."),
+                    "topic_slug": text_schema("Optional stable topic id/slug."),
+                },
+                "required": ["topic", "workspace"],
+            },
+        },
+        {
+            "name": "litagent_job_status",
+            "description": "Show one local queued/running/completed job.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "job_id": text_schema("Job id."),
+                    "jobs_db": text_schema("SQLite jobs database path."),
+                },
+                "required": ["job_id"],
+            },
+        },
+        {
+            "name": "litagent_job_list",
+            "description": "List recent local jobs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "jobs_db": text_schema("SQLite jobs database path."),
+                    "status": {
+                        "type": "string",
+                        "enum": ["queued", "running", "succeeded", "failed", "cancelled"],
+                    },
+                    "limit": int_schema("Maximum jobs to show.", 20),
+                },
+            },
+        },
+        {
+            "name": "litagent_job_cancel",
+            "description": "Cancel a queued job or request cancellation for a running job.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "job_id": text_schema("Job id."),
+                    "jobs_db": text_schema("SQLite jobs database path."),
+                },
+                "required": ["job_id"],
+            },
+        },
+        {
+            "name": "litagent_job_logs",
+            "description": "Return job events and the topic-run log if it exists.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "job_id": text_schema("Job id."),
+                    "jobs_db": text_schema("SQLite jobs database path."),
+                },
+                "required": ["job_id"],
+            },
+        },
+        {
+            "name": "litagent_job_run_next",
+            "description": "Run the oldest queued local job in the foreground.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "jobs_db": text_schema("SQLite jobs database path."),
+                },
+            },
+        },
     ]
 
 
@@ -279,9 +368,17 @@ def as_workspace(arguments: dict[str, Any]) -> Path:
 
 def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
     arguments = arguments or {}
+    no_workspace_tools = {
+        "litagent_library_status",
+        "litagent_job_status",
+        "litagent_job_list",
+        "litagent_job_cancel",
+        "litagent_job_logs",
+        "litagent_job_run_next",
+    }
     workspace = (
         as_workspace(arguments)
-        if name not in {"litagent_plan", "litagent_library_status"}
+        if name not in {"litagent_plan", *no_workspace_tools}
         else Path(arguments.get("workspace", "."))
     )
 
@@ -370,6 +467,47 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
         library_db = Path(str(arguments.get("library_db") or default_library_db_path()))
         result = inspect_library(library_db)
         return {"ok": True, **result}
+    if name == "litagent_job_create":
+        result = create_job(
+            jobs_db=Path(str(arguments.get("jobs_db") or default_jobs_db_path())),
+            topic=str(arguments["topic"]),
+            workspace=workspace,
+            max_papers=int(arguments.get("max_papers") or 30),
+            max_results_per_source=int(arguments.get("max_results_per_source") or 50),
+            mock=bool(arguments.get("mock", False)),
+            sync_library=bool(arguments.get("sync_library", False)),
+            library_db=Path(str(arguments.get("library_db") or default_library_db_path())),
+            topic_slug=arguments.get("topic_slug"),
+        )
+        return {"ok": True, **result}
+    if name == "litagent_job_status":
+        jobs_db = Path(str(arguments.get("jobs_db") or default_jobs_db_path()))
+        job = get_job(str(arguments["job_id"]), jobs_db=jobs_db)
+        return {"ok": True, "jobs_db": str(jobs_db), "job": job}
+    if name == "litagent_job_list":
+        result = list_jobs(
+            jobs_db=Path(str(arguments.get("jobs_db") or default_jobs_db_path())),
+            status=arguments.get("status"),
+            limit=int(arguments.get("limit") or 20),
+        )
+        return {"ok": True, **result}
+    if name == "litagent_job_cancel":
+        result = cancel_job(
+            str(arguments["job_id"]),
+            jobs_db=Path(str(arguments.get("jobs_db") or default_jobs_db_path())),
+        )
+        return {"ok": True, **result}
+    if name == "litagent_job_logs":
+        result = job_logs(
+            str(arguments["job_id"]),
+            jobs_db=Path(str(arguments.get("jobs_db") or default_jobs_db_path())),
+        )
+        return {"ok": True, **result}
+    if name == "litagent_job_run_next":
+        result = run_next_job(
+            jobs_db=Path(str(arguments.get("jobs_db") or default_jobs_db_path())),
+        )
+        return {"ok": bool(result.get("ok")), **result}
 
     msg = f"Unknown litagent MCP tool: {name}"
     raise ValueError(msg)

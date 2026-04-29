@@ -25,6 +25,10 @@ def test_tool_definitions_include_agent_workflow_tools() -> None:
     assert "litagent_export_wiki" in names
     assert "litagent_sync_library" in names
     assert "litagent_library_status" in names
+    assert "litagent_job_create" in names
+    assert "litagent_job_status" in names
+    assert "litagent_job_cancel" in names
+    assert "litagent_job_run_next" in names
 
 
 def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:
@@ -66,6 +70,31 @@ def test_mcp_call_tool_runs_mock_plan_search_dedup_status() -> None:
     assert library["papers_synced"] == 3
     assert library_status["counts"]["papers"] == 3
     assert len(read_jsonl(workspace / "data" / "selected_papers.jsonl")) == 3
+
+
+def test_mcp_job_tools_create_status_cancel() -> None:
+    workspace = workspace_path("mcp-jobs")
+    jobs_db = workspace / "jobs.db"
+
+    created = call_tool(
+        "litagent_job_create",
+        {
+            "topic": "agentic literature review tools",
+            "workspace": str(workspace / "topic"),
+            "jobs_db": str(jobs_db),
+            "max_papers": 3,
+            "mock": True,
+        },
+    )
+    job_id = created["job"]["id"]
+    status = call_tool("litagent_job_status", {"jobs_db": str(jobs_db), "job_id": job_id})
+    listed = call_tool("litagent_job_list", {"jobs_db": str(jobs_db)})
+    cancelled = call_tool("litagent_job_cancel", {"jobs_db": str(jobs_db), "job_id": job_id})
+
+    assert created["job"]["status"] == "queued"
+    assert status["job"]["id"] == job_id
+    assert listed["jobs"][0]["id"] == job_id
+    assert cancelled["job"]["status"] == "cancelled"
 
 
 def test_mcp_server_handles_initialize_and_tools_list() -> None:

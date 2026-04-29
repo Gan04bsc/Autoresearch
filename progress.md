@@ -410,6 +410,12 @@
   `topics`, `runs`, and `evidence_spans`, and keeps evidence attached to both paper and topic.
 - Added MCP tools `litagent_sync_library` and `litagent_library_status` so Codex can sync an
   inspected workspace into the long-term library without running network, download, or parse.
+- Added the first local job queue MVP with `litagent job create/status/list/cancel/logs/run-next`.
+  Jobs are stored in SQLite `jobs.db`, only run whitelisted `topic-run` payloads, and can sync
+  successful workspaces into `library.db` via `--sync-library`.
+- Added MCP tools for local jobs: `litagent_job_create`, `litagent_job_status`,
+  `litagent_job_list`, `litagent_job_cancel`, `litagent_job_logs`, and
+  `litagent_job_run_next`.
 
 ## Known Issues
 
@@ -442,9 +448,10 @@
 Do not expand to larger real reviews yet. Next work should focus on backend reliability and
 research workspace quality:
 
-1. Stabilize `litagent topic-run` and `sync-library` as local backend primitives before connecting
+1. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before connecting
    OpenClaw.
-2. Add a local job queue on top of `topic-run`, not arbitrary shell execution.
+2. Define an OpenClaw Research Skill that maps mobile commands only to job/status/sync/audio
+   whitelist commands, not arbitrary shell execution.
 3. Use `./demo-real-v3` as the evidence-quality regression baseline.
 4. Use `./demo-real-v4` as the source-diversity regression baseline.
 5. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a
