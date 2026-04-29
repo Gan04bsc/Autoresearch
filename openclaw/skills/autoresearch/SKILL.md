@@ -1,6 +1,6 @@
 ---
 name: autoresearch
-description: "Use whenever the user sends /research, /research new, /research library, /research status, /research run-next, /research logs, /research sync, or asks from OpenClaw/QQ/mobile to start, monitor, cancel, sync, or inspect an Autoresearch/litagent literature research job. This skill maps /research commands and natural-language research requests to safe litagent job queue commands only."
+description: "Use whenever the user sends /research, /research new, /research library, /research status, /research run-next, /research logs, /research sync, or asks from OpenClaw/QQ/mobile to start, monitor, cancel, sync, or inspect an Autoresearch/litagent literature research job. For /research library, if exec is available, call exec immediately with command `litagent library-status --json` before replying; never send placeholder text like 'I will check' without command results. This skill maps /research commands and natural-language research requests to safe litagent job queue commands only."
 ---
 
 # Autoresearch OpenClaw Skill
@@ -27,6 +27,29 @@ library”。它是 Autoresearch 命令，必须映射到 `litagent library-stat
 ```
 
 如果命令缺少必要参数，追问缺少的参数；不要自由发挥成普通研究建议。
+
+## Hard Execution Rule
+
+`/research` 命令是命令入口，不是普通聊天入口。命中本 skill 后，必须先执行对应的白名单
+`litagent` 命令，再根据命令结果回复。禁止先回复“我来查”“我先帮你查”这类没有执行结果的
+占位消息。
+
+如果当前工具列表中存在 `exec` 工具：
+
+- `/research library` 必须立即调用 `exec`，命令只能是 `litagent library-status --json`。
+- 调用成功后，只摘要 JSON 中的 `papers`、`topics`、`runs`、`evidence_spans` 和最近 topic。
+- 调用失败后，只返回简短错误和下一步，不要编造结果。
+- 如果 `exec` 工具不可用，只能回复：`exec unavailable`。
+
+`exec` 调用约束：
+
+```text
+cwd: D:/study/Autoresearch
+command: litagent library-status --json
+```
+
+不要为了执行该命令而调用 `powershell`、`cmd /c`、`sh -c`、`python -c`、`curl`、`wget` 或任意
+自由 shell 包装器。不要读取或输出 `.env`、API key、QQ token、cookie、session 文件或完整日志。
 
 ## Core Boundary
 

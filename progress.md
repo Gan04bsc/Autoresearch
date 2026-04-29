@@ -428,6 +428,19 @@
   OpenClaw needs either a safe command bridge/native command mapping or a tightly scoped
   `coding-agent` fallback that runs only whitelisted commands such as
   `litagent library-status --json`.
+- Diagnosed the host OpenClaw `/research library` integration after `tools.catalog` showed
+  `exec`/`process`, gateway approvals were installed, and `litagent library-status --json`
+  succeeded locally while approval `Last Used` stayed `unknown`. This means the QQ agent turn did
+  not actually issue an `exec` tool call.
+- Hardened `openclaw/skills/autoresearch/SKILL.md` so `/research library` is a command entrypoint:
+  when `exec` is available it must run `litagent library-status --json` before replying, and it is
+  forbidden to send placeholder text such as “我先帮你查” without command results.
+- Mirrored the `/research library` exec requirement into the skill frontmatter `description`,
+  because OpenClaw session snapshots include the skill description before the model decides
+  whether to read the full `SKILL.md` file.
+- Updated `docs/openclaw_integration.md` with the “skill understood but only placeholder reply”
+  failure mode and the exact verification signal: approvals `Last Used` should change and logs
+  should contain `exec` / `litagent` records after a successful run.
 
 ## Known Issues
 

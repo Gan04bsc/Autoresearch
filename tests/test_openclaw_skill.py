@@ -14,6 +14,9 @@ def test_openclaw_autoresearch_skill_exists_and_limits_commands() -> None:
     assert "`SKILL.md` 本身只是技能说明" in text
     assert "coding-agent" in text
     assert "litagent library-status --json" in text
+    assert "For /research library, if exec is available" in text
+    assert "必须立即调用 `exec`" in text
+    assert "禁止先回复" in text
     assert "QQ bot" in text
 
 

@@ -252,3 +252,44 @@ D:/study/Autoresearch 中只运行 litagent library-status --json。
 ```
 
 长期方案应该是 command bridge / native command，而不是让聊天 agent 拥有任意 shell 权限。
+
+## Skill 已理解但只回复占位话术时
+
+如果 QQBot 对 `/research library` 只回复：
+
+```text
+我先帮你查当前文献库状态。
+```
+
+但没有后续结果，且：
+
+```powershell
+openclaw gateway call tools.catalog --params '{\"agentId\":\"main\",\"includePlugins\":true}' --json
+openclaw approvals get --gateway
+litagent library-status --json
+```
+
+分别确认了 `exec`/`process` 存在、gateway approvals 已配置、`litagent` 本机可运行，同时
+approvals 的 `Last Used` 仍然是 `unknown`，说明问题不是 `litagent`、gateway 或 approvals，
+而是当前 agent turn 没有真的发起 `exec` tool call。
+
+这时优先处理：
+
+1. 重置当前 QQ session，让新的 `SKILL.md` 和 tool profile 快照生效。
+2. 确认 `openclaw/skills/autoresearch/SKILL.md` 包含硬执行规则：`/research library` 必须直接调用
+   `exec` 执行 `litagent library-status --json`，禁止先回复占位话术。
+3. 重新发送：
+
+```text
+/research library
+```
+
+验证方式：
+
+```powershell
+openclaw approvals get --gateway
+Get-Content "C:\Windows\TEMP\openclaw\openclaw-2026-04-29.log" -Tail 300 |
+  Select-String -Pattern "exec|approval|litagent|denied|safeBin|tool|error"
+```
+
+成功时，allowlist 的 `Last Used` 应更新，日志中应出现 `exec` / `litagent` 相关记录。
