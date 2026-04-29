@@ -446,6 +446,18 @@
   command before agent dispatch, runs only `litagent library-status --json`, summarizes the JSON
   counts in Chinese, and records `autoresearch bridge` in logs. Because this path bypasses the
   OpenClaw `exec` tool, approval `Last Used` is no longer the success signal for this mode.
+- Diagnosed the latest phone-side failure as the real OpenClaw state directory being
+  `%USERPROFILE%\.openclaw`, not the repository `.openclaw` copy. The real gateway was still
+  resolving `litagent` via PATH and returning the quoted `C:\Users\Gan\.local\bin\litagent.cmd`
+  failure.
+- Updated the real `%USERPROFILE%\.openclaw\gateway.cmd` to set
+  `AUTORESEARCH_CWD=D:\study\Autoresearch` and
+  `AUTORESEARCH_LITAGENT_BIN=D:\study\Autoresearch\.venv\Scripts\litagent.exe`, then restarted
+  OpenClaw gateway. `openclaw health` is OK, QQBot WebSocket reconnected, and Node `execFile`
+  against the fixed `litagent.exe` returns the expected library JSON.
+- Confirmed the phone-side `/research library` command now returns the direct native bridge
+  summary: 5 papers, 1 topic, 1 run, 10 evidence spans, with latest topic
+  `agentic literature review automation`.
 
 ## Known Issues
 
@@ -453,6 +465,8 @@
 - Docker Engine is running under the real Windows user; `docker ps` and `docker compose version` work.
 - Docker Desktop UI logs show repeated Electron `/cloud/status/stream` Internal Server Error, but Engine/Compose are usable.
 - Old Dev Container instances with `CODEX_HOME=/root/.codex` or a direct host bind at `/home/vscode/.codex` must be rebuilt.
+- Repository `.openclaw/` can diverge from the real `%USERPROFILE%\.openclaw`; when debugging the
+  phone/QQ bot, always inspect the real home-state directory and gateway logs.
 - Sharing `.codex` into a container gives the container access to local Codex credentials/state; only use this with trusted Dockerfiles and trusted dependencies.
 - Local `.ruff_cache` and `.pytest_cache` paths are not writable in this environment; use `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache` and `pytest -p no:cacheprovider` when needed.
 - Real API calls are implemented but not exercised by tests; tests use provider mapping units and deterministic mock mode.

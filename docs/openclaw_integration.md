@@ -324,3 +324,59 @@ Get-Content "C:\Windows\TEMP\openclaw\openclaw-2026-04-29.log" -Tail 300 |
 ```
 
 成功时，QQ 应直接返回文献库统计，而不是“我先帮你查”或“无法直接执行”。
+
+## `/research library` 报 `litagent.cmd` 不是内部或外部命令时
+
+如果 QQBot 返回类似：
+
+```text
+执行 litagent library-status --json 失败：'\"C:\Users\Gan\.local\bin\litagent.cmd\"' 不是内部或外部命令
+```
+
+先区分两个路径：
+
+- 仓库内的 `.openclaw/` 可能只是项目副本。
+- 实际运行的 OpenClaw 通常在 `%USERPROFILE%\.openclaw`，日志里会显示
+  `C:\Users\Gan\.openclaw\extensions\qqbot\index.ts`。
+
+推荐修复方式是在真实 gateway 脚本中固定 Autoresearch 后端入口，避免让 QQBot 进程通过 PATH
+猜测 `litagent.cmd`：
+
+```bat
+set "AUTORESEARCH_CWD=D:\study\Autoresearch"
+set "AUTORESEARCH_LITAGENT_BIN=D:\study\Autoresearch\.venv\Scripts\litagent.exe"
+```
+
+这两行应写入 `%USERPROFILE%\.openclaw\gateway.cmd`，位置在
+`OPENCLAW_SERVICE_VERSION` 之后、启动 `node.exe ... openclaw ... gateway` 之前。写入后运行：
+
+```powershell
+openclaw gateway restart
+openclaw health
+```
+
+`openclaw gateway restart` 可能因为端口健康检查误报 timeout；只要 `openclaw health` 正常、日志显示
+QQBot `WebSocket connected`，即可在手机端重新发送：
+
+```text
+/research library
+```
+
+宿主机验证命令：
+
+```powershell
+& D:\study\Autoresearch\.venv\Scripts\litagent.exe library-status --json
+node -e "const {execFile}=require('child_process'); execFile('D:\\study\\Autoresearch\\.venv\\Scripts\\litagent.exe',['library-status','--json'],{cwd:'D:\\study\\Autoresearch',windowsHide:true},(e,stdout,stderr)=>{if(e){console.error(stderr||stdout||e.message);process.exit(1)} console.log(stdout)})"
+```
+
+两条都成功时，说明问题不在 `litagent`，而在 OpenClaw gateway 进程的环境或旧进程未重启。
+
+2026-04-29 已验证的最终原因和修复：
+
+- 真实运行目录是 `C:\Users\Gan\.openclaw`，不是仓库里的 `.openclaw` 副本。
+- gateway 原先仍通过 PATH 解析 `litagent.cmd`，手机端进程拿到的命令路径/quoting 不可靠。
+- 最终将真实 `%USERPROFILE%\.openclaw\gateway.cmd` 固定到
+  `D:\study\Autoresearch\.venv\Scripts\litagent.exe`，并设置
+  `AUTORESEARCH_CWD=D:\study\Autoresearch`。
+- `openclaw health` 正常、QQBot WebSocket 重连、Node `execFile` 调用成功后，手机端
+  `/research library` 已直接返回文献库统计：5 papers、1 topic、1 run、10 evidence spans。
