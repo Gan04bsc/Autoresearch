@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from litagent.cli import main
 from litagent.io import write_json, write_jsonl
-from litagent.library_db import inspect_library, sync_workspace_to_library
+from litagent.library_db import default_library_db_path, inspect_library, sync_workspace_to_library
 from litagent.workspace import create_workspace
 
 
@@ -12,6 +12,13 @@ def workspace_path(name: str) -> Path:
     path = Path(".tmp") / "tests" / f"{name}-{uuid4().hex}"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def test_default_library_db_respects_data_root_env(monkeypatch) -> None:
+    root = workspace_path("library-default-root")
+    monkeypatch.setenv("AUTORESEARCH_DATA_ROOT", str(root))
+
+    assert default_library_db_path() == root / "library.db"
 
 
 def make_workspace() -> Path:

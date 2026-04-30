@@ -15,6 +15,7 @@ workspace/
 .pytest-tmp/
 pytest-cache-files-*/
 .openclaw/
+.autoresearch/
 
 # Local external tools, cloned skills, and private source material.
 AutoWiki-skill/

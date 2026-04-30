@@ -1,6 +1,6 @@
 ---
 name: autoresearch
-description: "Use whenever the user sends /research, /research new, /research library, /research status, /research run-next, /research logs, /research sync, or asks from OpenClaw/QQ/mobile to start, monitor, cancel, sync, or inspect an Autoresearch/litagent literature research job. For /research library, if exec is available, call exec immediately with command `litagent library-status --json` before replying; never send placeholder text like 'I will check' without command results. This skill maps /research commands and natural-language research requests to safe litagent job queue commands only."
+description: "Use whenever the user sends /research, /research new, /research library, /research status, /research run-next, /research logs, /research result, /research report, /research sync, or asks from OpenClaw/QQ/mobile to start, monitor, cancel, sync, summarize, inspect, or fetch report files for an Autoresearch/litagent literature research job. For /research library, if exec is available, call exec immediately with command `litagent library-status --json` before replying; never send placeholder text like 'I will check' without command results. This skill maps /research commands and natural-language research requests to safe litagent job queue commands only."
 ---
 
 # Autoresearch OpenClaw Skill
@@ -22,6 +22,8 @@ library”。它是 Autoresearch 命令，必须映射到 `litagent library-stat
 /research list
 /research cancel <job_id>
 /research logs <job_id>
+/research result <job_id>
+/research report <job_id>
 /research library
 /research sync <workspace>
 ```
@@ -56,14 +58,19 @@ command: litagent library-status --json
 
 ```text
 /research new <topic> [--mock] [--real] [--max-papers N]
+/research <natural-language-topic> [--mock] [--max-papers N] [--queue]
 /research list
 /research run-next
 /research status [job_id]
 /research logs [job_id]
+/research result <job_id>
+/research report <job_id>
 /research library
 ```
 
-其中 `/research new` 默认使用 `--mock`，只有用户显式传入 `--real` 才创建真实检索任务。
+其中 `/research new` 仍默认使用 `--mock`，适合 smoke test。自然语言 `/research <topic>`
+默认创建真实检索 job，`max-papers` 默认约 60，并由 bridge 后台自动运行，完成后主动推送摘要和长版报告文件。
+如果只想排队不自动执行，加 `--queue`；如果只想离线冒烟测试，加 `--mock`。
 `job_id` 外面的尖括号只是占位符；native bridge 应兼容 `/research logs <job-...>`，但推荐直接发送
 `/research logs job-...`。如果 `/research status` 不带 `job_id`，应返回最近任务列表；如果
 `/research logs` 不带 `job_id`，应返回最近任务和正确用法。
@@ -91,6 +98,8 @@ litagent job status ...
 litagent job list ...
 litagent job cancel ...
 litagent job logs ...
+litagent job result ...
+litagent job run ...
 litagent job run-next ...
 litagent library-status ...
 litagent inspect-workspace ...
@@ -141,18 +150,19 @@ del ...
 默认路径可以按本机实际配置调整，但不要在聊天里暴露密钥。
 
 ```text
-topics root: ~/.autoresearch/topics/
-jobs db: ~/.autoresearch/jobs.db
-library db: ~/.autoresearch/library.db
+data root: $AUTORESEARCH_DATA_ROOT or $AUTORESEARCH_CWD/.autoresearch
+topics root: <data-root>/topics/
+jobs db: <data-root>/jobs.db
+library db: <data-root>/library.db
 wiki vault root: ~/ResearchVault 或用户指定的 Obsidian vault
 ```
 
 如果 OpenClaw 运行在 Windows 宿主机，路径应使用宿主机可访问路径，例如：
 
 ```text
-D:/study/Autoresearch/topics/<topic-slug>
-D:/study/Autoresearch/library.db
-D:/study/Autoresearch/jobs.db
+D:/study/Autoresearch/.autoresearch/topics/<topic-slug>
+D:/study/Autoresearch/.autoresearch/library.db
+D:/study/Autoresearch/.autoresearch/jobs.db
 D:/study/ResearchVault
 ```
 
@@ -183,7 +193,7 @@ litagent job create \
 主题：<topic>
 状态：queued
 工作区：<workspace>
-发送 /research run-next 开始执行，或 /research status <job_id> 查看状态。
+发送 /research run-next 开始执行；完成后发送 /research result <job_id> 查看手机摘要。
 ```
 
 ### `/research run-next`
@@ -200,7 +210,7 @@ litagent job run-next --jobs-db "<jobs-db>" --json
 任务已完成/失败：<job_id>
 状态：succeeded/failed
 工作区：<workspace>
-下一步：打开 Obsidian vault 或发送 /research logs <job_id>
+下一步：发送 /research result <job_id> 查看手机摘要，或发送 /research logs <job_id>
 ```
 
 ### `/research status <job_id>`
@@ -226,6 +236,49 @@ litagent job logs <job_id> --jobs-db "<jobs-db>" --json
 ```
 
 只摘要最近阶段，不要把超长 `run_log` 原样刷屏。
+
+### `/research result <job_id>`
+
+```bash
+litagent job result <job_id> --jobs-db "<jobs-db>" --write-report --pdf --json
+```
+
+返回手机可读摘要时，必须优先呈现凝练知识点：领域边界、文献类型分布、技术主线、代表阅读、
+benchmark/评测重点和可做机会。运行信息（job_id、状态、质量标签、selected/parsed/notes/evidence
+规模、`wiki-vault/START_HERE.md` 路径）只能放在后面。不要把完整报告、完整 evidence table 或完整日志刷屏。
+
+同时应生成并返回长版文件：
+
+- `reports/mobile_brief.md`：可复查、可继续编辑的 Markdown 源文件。
+- `reports/mobile_brief.html`：手机端优先查看的富文本文件。
+- `reports/mobile_brief.pdf`：如果宿主机 Edge/Chrome headless 渲染成功则附加；失败时不要中断结果，
+  继续发送 HTML/Markdown，并简短说明 PDF 生成失败原因。
+- `reports/agent_synthesis_pack.md`：给 Codex / Agent 的证据包，包含 selected papers、notes 摘录、
+  evidence 摘录和知识页入口。
+- `reports/agent_synthesis_prompt.md`：给 Codex / Agent 的深度报告写作指令。
+
+深度研究报告不能由 OpenClaw bridge 或 Python 规则硬编码生成。若 `reports/codex_synthesis.md` 已存在，
+`litagent job result --write-report --pdf --json` 会优先用它作为 `mobile_brief.md/html/pdf` 的来源；若不存在，
+只能返回 deterministic summary 和 agent synthesis pack，等待 Codex / Agent 基于证据包写入
+`reports/codex_synthesis.md`。
+
+### 自然语言 `/research <topic>`
+
+如果消息以 `/research` 开头但不是固定子命令，把剩余文本当作主题请求。例如：
+
+```text
+/research 请你帮我调研一下多模态大模型领域
+```
+
+默认行为是真实调研一键流程：创建 job，`max-papers` 默认约 60，立即后台运行该 job，完成后主动
+推送 `/research result` 同等手机摘要和长版报告文件。不要要求用户再发送 `/research run-next` 或
+`/research result <job_id>` 才能完成本次自然语言请求。
+
+可选参数：
+
+- `--max-papers N`：调整论文规模，允许 1 到 70。
+- `--mock`：只跑离线 smoke test。
+- `--queue`：只创建队列任务，不自动运行。
 
 ### `/research sync <workspace>`
 

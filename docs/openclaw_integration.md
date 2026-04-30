@@ -92,6 +92,8 @@ OpenClaw / QQ bot 只映射以下白名单命令：
 /research list
 /research cancel <job_id>
 /research logs <job_id>
+/research result <job_id>
+/research report <job_id>
 /research library
 /research sync <workspace>
 ```
@@ -105,6 +107,8 @@ litagent job status "<job_id>" --json
 litagent job list --json
 litagent job cancel "<job_id>" --json
 litagent job logs "<job_id>" --json
+litagent job result "<job_id>" --write-report --pdf --json
+litagent job run "<job_id>" --json
 litagent library-status --json
 litagent export-wiki "<workspace>" --format autowiki --out "<vault-out>" --json
 ```
@@ -121,6 +125,63 @@ python -c
 浏览器自动化抓取
 ```
 
+## 手机端摘要、长版报告与自然语言入口
+
+手机端查看结果使用：
+
+```text
+/research result <job_id>
+```
+
+该命令固定映射到：
+
+```bash
+litagent job result "<job_id>" --write-report --pdf --json
+```
+
+返回内容优先给手机可读的“知识点摘要”：领域边界、文献类型分布、技术主线、代表阅读、
+benchmark/评测重点和可做机会。运行信息（job_id、状态、质量标签、selected/parsed/notes/evidence
+规模、`wiki-vault/START_HERE.md` 路径）只能作为后置元数据。不要把完整报告、完整 evidence table
+或完整日志直接发送到 QQ。
+
+同时会在 workspace 下生成长版报告文件：
+
+```text
+reports/mobile_brief.md
+reports/mobile_brief.html
+reports/mobile_brief.pdf
+reports/agent_synthesis_pack.md
+reports/agent_synthesis_prompt.md
+reports/codex_synthesis.md
+```
+
+`mobile_brief.md` 是可复查和继续编辑的 Markdown 源文件，`mobile_brief.html` 是手机端优先查看的富文本
+文件。`mobile_brief.pdf` 依赖宿主机 Edge/Chrome headless 渲染；如果浏览器权限或环境限制导致 PDF
+失败，bridge 仍应发送 HTML/Markdown，并在消息中保留简短失败原因。
+
+其中 `agent_synthesis_pack.md` 和 `agent_synthesis_prompt.md` 是给 Codex / Agent 的输入材料，不是最终报告。
+真正的深度研究报告应由 Codex / Agent 读取证据包、notes、evidence table 和知识页后写入
+`reports/codex_synthesis.md`。`litagent job result --write-report --pdf --json` 不会硬编码生成这份深度综合；
+它只在 `codex_synthesis.md` 已存在时，把该 Agent-authored 文稿复制/渲染为 `mobile_brief.md/html/pdf`。
+如果该文件不存在，返回的 `mobile_brief.*` 只是 deterministic summary，适合作为兜底，不应当作研究级报告。
+
+自然语言入口使用：
+
+```text
+/research 请你帮我调研一下多模态大模型领域
+```
+
+native bridge 会把它当作主题请求。默认创建真实检索 job，`max-papers` 默认约 60，并立即在后台
+运行该 job。由于真实检索、下载和解析可能超过 QQ 消息回合超时，bridge 会先回复 job_id 和工作区，
+流程完成后再主动推送 `/research result` 同等摘要和长版报告文件；用户不需要再发送 `/research run-next` 或
+`/research result <job_id>`。
+
+可选参数：
+
+- `--max-papers N`：调整论文规模，允许 1 到 70。
+- `--mock`：只跑离线 smoke test。
+- `--queue`：只创建 queued job，不自动运行。
+
 ## 路径注意事项
 
 如果 OpenClaw 在 Windows 宿主机运行，不要使用容器内路径：
@@ -133,9 +194,9 @@ python -c
 应使用 Windows 可访问路径，例如：
 
 ```text
-D:/study/Autoresearch/topics/<topic-slug>
-D:/study/Autoresearch/jobs.db
-D:/study/Autoresearch/library.db
+D:/study/Autoresearch/.autoresearch/topics/<topic-slug>
+D:/study/Autoresearch/.autoresearch/jobs.db
+D:/study/Autoresearch/.autoresearch/library.db
 D:/study/ResearchVault
 ```
 
@@ -146,7 +207,8 @@ D:/study/ResearchVault
 在 OpenClaw 宿主环境中先做 mock 验证：
 
 ```powershell
-litagent job create --topic "agentic literature review automation" --workspace "D:/study/Autoresearch/tmp/openclaw-smoke" --max-papers 5 --mock --sync-library --json
+set AUTORESEARCH_DATA_ROOT=D:\study\Autoresearch\.autoresearch
+litagent job create --topic "agentic literature review automation" --workspace "D:/study/Autoresearch/.autoresearch/topics/openclaw-smoke" --max-papers 5 --mock --sync-library --json
 litagent job run-next --json
 litagent job list --json
 ```
@@ -158,6 +220,8 @@ litagent job list --json
 - QQ bot 消息能创建 job。
 - 用户能通过 QQ bot 查到 job status。
 - `job run-next` 能完成 mock workflow。
+- 用户能通过 QQ bot 发送 `/research result <job_id>` 查看报告/知识页手机摘要，并收到
+  `mobile_brief.html` / `mobile_brief.md`，PDF 可用时优先收到 `mobile_brief.pdf`。
 - `run_state.json`、`run_log.jsonl`、`artifacts_manifest.json`、`errors.json` 存在。
 - `library.db` 能看到同步后的 topic 和 papers。
 - OpenClaw 没有获得任意 shell 权限。
@@ -348,7 +412,9 @@ Get-Content "C:\Windows\TEMP\openclaw\openclaw-2026-04-29.log" -Tail 300 |
 - `/research new` 默认创建 mock job，避免手机端误触真实检索和外部 API。
 - 只有显式使用 `--real` 才创建真实检索任务，例如
   `/research new 多智能体文献调研自动化工具 --real --max-papers 10`。
-- `/research run-next` 仍是前台执行，真实任务可能超过聊天响应时间；真实后台 runner 后续应独立实现。
+- 自然语言 `/research <topic>` 默认创建真实检索 job，`max-papers` 默认约 60，并自动后台运行；
+  完成后主动推送手机摘要。
+- `/research run-next` 仍可作为手动调试入口，但自然语言一键流程不要求用户手动调用。
 - `/research status` 不带 job id 时返回最近任务列表；`/research logs` 不带 job id 时返回最近任务和正确用法。
 - `job_id` 解析会去掉 ASCII / full-width 尖括号，因此 `/research logs <job-...>` 和
   `/research logs job-...` 都可用。
@@ -383,8 +449,12 @@ Get-Content "C:\Windows\TEMP\openclaw\openclaw-2026-04-29.log" -Tail 300 |
 
 ```bat
 set "AUTORESEARCH_CWD=D:\study\Autoresearch"
+set "AUTORESEARCH_DATA_ROOT=D:\study\Autoresearch\.autoresearch"
 set "AUTORESEARCH_LITAGENT_BIN=D:\study\Autoresearch\.venv\Scripts\litagent.exe"
 ```
+
+`AUTORESEARCH_DATA_ROOT` controls the phone-side jobs DB, library DB, and topic workspaces; this
+keeps new OpenClaw runs under `D:\study\Autoresearch\.autoresearch` instead of `%USERPROFILE%`.
 
 这两行应写入 `%USERPROFILE%\.openclaw\gateway.cmd`，位置在
 `OPENCLAW_SERVICE_VERSION` 之后、启动 `node.exe ... openclaw ... gateway` 之前。写入后运行：

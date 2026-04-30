@@ -5,16 +5,26 @@ from litagent.cli import main
 from litagent.job_queue import (
     cancel_job,
     create_job,
+    default_jobs_db_path,
     job_logs,
     list_jobs,
+    run_job,
     run_next_job,
 )
+from litagent.result_summary import summarize_workspace_result
 
 
 def workspace_path(name: str) -> Path:
     path = Path(".tmp") / "tests" / f"{name}-{uuid4().hex}"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def test_default_jobs_db_respects_data_root_env(monkeypatch) -> None:
+    root = workspace_path("jobs-default-root")
+    monkeypatch.setenv("AUTORESEARCH_DATA_ROOT", str(root))
+
+    assert default_jobs_db_path() == root / "jobs.db"
 
 
 def test_job_create_list_and_cancel_queued_job() -> None:
@@ -66,6 +76,34 @@ def test_job_run_next_runs_mock_topic_run_and_syncs_library() -> None:
     assert (workspace / "wiki-vault" / "START_HERE.md").is_file()
     assert any(event["event"] == "job_succeeded" for event in logs["events"])
     assert any(row["event"] == "topic_run_succeeded" for row in logs["run_log"])
+
+
+def test_job_run_by_id_and_result_summary() -> None:
+    root = workspace_path("jobs-run-id")
+    jobs_db = root / "jobs.db"
+    workspace = root / "topic"
+
+    created = create_job(
+        jobs_db=jobs_db,
+        topic="agentic literature review automation",
+        workspace=workspace,
+        max_papers=5,
+        mock=True,
+        sync_library=True,
+        library_db=root / "library.db",
+        topic_slug="agentic-lit-review",
+    )
+    job_id = created["job"]["id"]
+    result = run_job(job_id, jobs_db=jobs_db)
+    summary = summarize_workspace_result(workspace, job=result["job"])
+    summary_result = main(["job", "result", "--jobs-db", str(jobs_db), job_id, "--json"])
+
+    assert result["ok"] is True
+    assert result["job"]["status"] == "succeeded"
+    assert summary["counts"]["selected_papers"] == 5
+    assert summary["counts"]["evidence_spans"] > 0
+    assert summary["mobile_summary"]
+    assert summary_result == 0
 
 
 def test_job_cli_create_status_list_cancel() -> None:

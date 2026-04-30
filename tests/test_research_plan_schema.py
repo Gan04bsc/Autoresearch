@@ -48,3 +48,19 @@ def test_literature_agent_topic_uses_focused_real_mode_terms() -> None:
     assert "traffic control" in plan["exclude_keywords"]
     assert "citation-aware synthesis" in queries
     assert "多智能体 文献综述 自动化综述 科研助手 论文阅读智能体" in queries
+
+
+def test_multimodal_large_model_topic_uses_focused_terms() -> None:
+    plan = create_research_plan("多模态大模型领域", selection_count=60)
+    queries = "\n".join(query for source in plan["search_queries"].values() for query in source)
+
+    assert plan["selection_count"] == 60
+    assert "multimodal large language model" in plan["include_keywords"]
+    assert "large vision-language model" in plan["include_keywords"]
+    assert "multimodal instruction tuning" in plan["high_value_phrases"]
+    assert "traffic prediction" in plan["exclude_keywords"]
+    assert "recommender systems" in plan["exclude_keywords"]
+    assert "multimodal foundation model" in queries
+    assert "vision language models instruction tuning multimodal reasoning" in queries
+    assert "多模态大模型 多模态基础模型 视觉语言模型 评测 数据集" in queries
+    assert "benchmarks and datasets" in plan["coverage_targets"]

@@ -119,6 +119,8 @@ litagent job status JOB_ID --json
 litagent job list --json
 litagent job cancel JOB_ID --json
 litagent job logs JOB_ID --json
+litagent job result JOB_ID --json
+litagent job run JOB_ID --json
 litagent job run-next --json
 ```
 
@@ -126,6 +128,12 @@ litagent job run-next --json
 job；如果创建任务时传入 `--sync-library`，成功后会同步到 `library.db`。这一步为 OpenClaw
 提供安全接口，但还不是完整后台 daemon。后续可以在此基础上加 worker、进度通知和手机端
 消息映射。
+
+`job result` 输出手机友好的报告/知识页摘要，用于 QQ/OpenClaw 直接查看主题、质量标签、
+selected/parsed/notes/evidence 规模、报告执行摘要、关键知识页摘要和 `wiki-vault/START_HERE.md`。
+`job run JOB_ID` 用于安全运行指定 queued job，避免一键入口误消费更早的 queued job。
+QQBot native bridge 的自然语言 `/research <topic>` 已调整为手机一键入口：默认创建约 60 篇的
+真实检索 job，后台自动调用 `job run JOB_ID`，完成后主动推送 `job result JOB_ID` 摘要。
 
 当前已经补充 OpenClaw skill 草案：
 

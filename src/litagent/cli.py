@@ -17,6 +17,7 @@ from litagent.job_queue import (
     get_job,
     job_logs,
     list_jobs,
+    run_job,
     run_next_job,
 )
 from litagent.knowledge import build_knowledge
@@ -31,6 +32,7 @@ from litagent.planner import write_research_plan
 from litagent.provider_diagnostics import smoke_test_semantic_scholar
 from litagent.reader import generate_notes
 from litagent.report import generate_final_report
+from litagent.result_summary import result_summary_markdown, summarize_workspace_result
 from litagent.review_selection import review_selection, review_selection_markdown
 from litagent.search import execute_search
 from litagent.status import workspace_status, workspace_status_markdown
@@ -379,6 +381,27 @@ def job_logs_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def job_result_command(args: argparse.Namespace) -> int:
+    job = get_job(args.job_id, jobs_db=args.jobs_db)
+    summary = summarize_workspace_result(
+        Path(str(job["workspace"])),
+        job=job,
+        write_report=args.write_report or args.pdf,
+        render_pdf=args.pdf,
+    )
+    result = {"ok": True, "jobs_db": str(args.jobs_db), "job": job, "result": summary}
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(result_summary_markdown(summary))
+    return 0
+
+
+def job_run_command(args: argparse.Namespace) -> int:
+    result = run_job(args.job_id, jobs_db=args.jobs_db)
+    return print_json_or_text(args, result)
+
+
 def job_run_next_command(args: argparse.Namespace) -> int:
     result = run_next_job(jobs_db=args.jobs_db)
     return print_json_or_text(args, result)
@@ -595,7 +618,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--library-db",
         type=Path,
         default=default_library_db_path(),
-        help="SQLite library path. Defaults to ~/.autoresearch/library.db.",
+        help=(
+            "SQLite library path. Defaults to $AUTORESEARCH_DATA_ROOT/library.db "
+            "or ~/.autoresearch/library.db."
+        ),
     )
     sync_library_parser.add_argument(
         "--topic-slug",
@@ -612,7 +638,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--library-db",
         type=Path,
         default=default_library_db_path(),
-        help="SQLite library path. Defaults to ~/.autoresearch/library.db.",
+        help=(
+            "SQLite library path. Defaults to $AUTORESEARCH_DATA_ROOT/library.db "
+            "or ~/.autoresearch/library.db."
+        ),
     )
     library_status_parser.add_argument("--json", action="store_true")
     library_status_parser.set_defaults(func=library_status_command)
@@ -628,7 +657,10 @@ def build_parser() -> argparse.ArgumentParser:
             "--jobs-db",
             type=Path,
             default=default_jobs_db_path(),
-            help="SQLite jobs database path. Defaults to ~/.autoresearch/jobs.db.",
+            help=(
+                "SQLite jobs database path. Defaults to $AUTORESEARCH_DATA_ROOT/jobs.db "
+                "or ~/.autoresearch/jobs.db."
+            ),
         )
 
     job_create_parser = job_subparsers.add_parser(
@@ -696,6 +728,34 @@ def build_parser() -> argparse.ArgumentParser:
     job_logs_parser.add_argument("job_id")
     job_logs_parser.add_argument("--json", action="store_true")
     job_logs_parser.set_defaults(func=job_logs_command)
+
+    job_result_parser = job_subparsers.add_parser(
+        "result",
+        help="Show a phone-friendly job result summary.",
+    )
+    add_jobs_db_argument(job_result_parser)
+    job_result_parser.add_argument("job_id")
+    job_result_parser.add_argument(
+        "--write-report",
+        action="store_true",
+        help="Write reports/mobile_brief.md and reports/mobile_brief.html.",
+    )
+    job_result_parser.add_argument(
+        "--pdf",
+        action="store_true",
+        help="Also try rendering reports/mobile_brief.pdf with headless Edge/Chrome.",
+    )
+    job_result_parser.add_argument("--json", action="store_true")
+    job_result_parser.set_defaults(func=job_result_command)
+
+    job_run_parser = job_subparsers.add_parser(
+        "run",
+        help="Run one queued job by id in the foreground.",
+    )
+    add_jobs_db_argument(job_run_parser)
+    job_run_parser.add_argument("job_id")
+    job_run_parser.add_argument("--json", action="store_true")
+    job_run_parser.set_defaults(func=job_run_command)
 
     job_run_next_parser = job_subparsers.add_parser(
         "run-next",

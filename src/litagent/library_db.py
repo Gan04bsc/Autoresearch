@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,8 +19,15 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def default_autoresearch_data_root() -> Path:
+    configured = os.environ.get("AUTORESEARCH_DATA_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".autoresearch"
+
+
 def default_library_db_path() -> Path:
-    return Path.home() / ".autoresearch" / "library.db"
+    return default_autoresearch_data_root() / "library.db"
 
 
 def json_dumps(value: Any) -> str:

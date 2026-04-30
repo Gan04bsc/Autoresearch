@@ -8,7 +8,11 @@ from typing import Any
 from uuid import uuid4
 
 from litagent.io import read_jsonl
-from litagent.library_db import default_library_db_path, sync_workspace_to_library
+from litagent.library_db import (
+    default_autoresearch_data_root,
+    default_library_db_path,
+    sync_workspace_to_library,
+)
 from litagent.topic_run import run_topic, safe_error_text
 
 JOB_STATUSES = {"queued", "running", "succeeded", "failed", "cancelled"}
@@ -20,7 +24,7 @@ def utc_now() -> str:
 
 
 def default_jobs_db_path() -> Path:
-    return Path.home() / ".autoresearch" / "jobs.db"
+    return default_autoresearch_data_root() / "jobs.db"
 
 
 def new_job_id() -> str:
@@ -340,22 +344,35 @@ def update_job_status(
     )
 
 
-def run_next_job(*, jobs_db: Path | None = None) -> dict[str, Any]:
-    jobs_db = jobs_db or default_jobs_db_path()
-    init_jobs_db(jobs_db)
+def mark_job_started(conn: sqlite3.Connection, job: dict[str, Any]) -> None:
+    update_job_status(
+        conn,
+        job["id"],
+        status="running",
+        progress="topic-run started",
+        started_at=utc_now(),
+    )
+    add_event(conn, job["id"], "job_started", {"command": job["command"]})
+
+
+def run_selected_job(job: dict[str, Any], *, jobs_db: Path) -> dict[str, Any]:
     with connect(jobs_db) as conn:
-        job = next_queued_job(conn)
-        if job is None:
-            return {"ok": True, "jobs_db": str(jobs_db), "job": None, "message": "no queued jobs"}
-        now = utc_now()
-        update_job_status(
-            conn,
-            job["id"],
-            status="running",
-            progress="topic-run started",
-            started_at=now,
-        )
-        add_event(conn, job["id"], "job_started", {"command": job["command"]})
+        fresh_job = get_job(job["id"], conn=conn)
+        if fresh_job["status"] != "queued":
+            add_event(
+                conn,
+                job["id"],
+                "run_ignored",
+                {"status": fresh_job["status"], "reason": "job is not queued"},
+            )
+            return {
+                "ok": fresh_job["status"] == "succeeded",
+                "jobs_db": str(jobs_db),
+                "job": fresh_job,
+                "message": f"job is {fresh_job['status']}, not queued",
+            }
+        mark_job_started(conn, fresh_job)
+        job = fresh_job
 
     payload = job["payload"]
     workspace = Path(str(payload["workspace"]))
@@ -435,6 +452,23 @@ def run_next_job(*, jobs_db: Path | None = None) -> dict[str, Any]:
             add_event(conn, job["id"], "job_failed", {"error": error_text})
             updated = get_job(job["id"], conn=conn)
         return {"ok": False, "jobs_db": str(jobs_db), "job": updated, "error": error_text}
+
+
+def run_job(job_id: str, *, jobs_db: Path | None = None) -> dict[str, Any]:
+    jobs_db = jobs_db or default_jobs_db_path()
+    init_jobs_db(jobs_db)
+    job = get_job(job_id, jobs_db=jobs_db)
+    return run_selected_job(job, jobs_db=jobs_db)
+
+
+def run_next_job(*, jobs_db: Path | None = None) -> dict[str, Any]:
+    jobs_db = jobs_db or default_jobs_db_path()
+    init_jobs_db(jobs_db)
+    with connect(jobs_db) as conn:
+        job = next_queued_job(conn)
+        if job is None:
+            return {"ok": True, "jobs_db": str(jobs_db), "job": None, "message": "no queued jobs"}
+    return run_selected_job(job, jobs_db=jobs_db)
 
 
 def job_logs(job_id: str, *, jobs_db: Path | None = None) -> dict[str, Any]:

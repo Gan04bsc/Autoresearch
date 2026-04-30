@@ -17,6 +17,49 @@
 
 ## Current Notes
 
+- Reframed mobile long-report generation around Agent-authored synthesis rather than hardcoded
+  deterministic content. `litagent job result --write-report --pdf --json` now writes
+  `reports/agent_synthesis_pack.md` and `reports/agent_synthesis_prompt.md` as Codex inputs; if
+  `reports/codex_synthesis.md` exists, it becomes the source for `mobile_brief.md/html/pdf`.
+  Otherwise `mobile_brief.*` remains a deterministic fallback summary and should not be treated as
+  the research-grade report.
+- Added long-form mobile report artifacts for `/research result`: `reports/mobile_brief.md` and
+  `reports/mobile_brief.html` are generated from selected papers, role distribution, topic
+  clusters, evidence snippets, knowledge-page excerpts, reading plan, and workspace links.
+- Added optional `reports/mobile_brief.pdf` rendering via headless Edge/Chrome behind
+  `litagent job result <job_id> --write-report --pdf --json`. PDF rendering degrades gracefully:
+  if the host browser cannot create a profile or print to PDF, the result still returns the
+  Markdown/HTML artifacts plus a short PDF error.
+- Updated the QQBot native Autoresearch bridge so `/research result|report|brief|summary <job_id>`
+  and automatic natural-language `/research <topic>` completion request long report artifacts and
+  send them back with `<qqfile>...</qqfile>` tags. The bridge now prefers PDF when available and
+  otherwise sends HTML/Markdown.
+- Added `AUTORESEARCH_DATA_ROOT` support for OpenClaw/mobile runs. New phone-triggered jobs now
+  default to `D:\study\Autoresearch\.autoresearch`, with topic workspaces under `topics/` and
+  `jobs.db` / `library.db` kept on D drive instead of `%USERPROFILE%\.autoresearch`.
+- Reworked phone-side `/research result` output so the proactive completion message starts with
+  condensed knowledge points instead of run logs. The summary now derives field boundary, paper
+  role distribution, technical themes, representative reading, benchmark focus, and opportunity
+  hints from `selected_papers.jsonl` and evidence counts before appending compact run metadata.
+- Added `litagent job result JOB_ID --json` for phone-friendly report/knowledge-page summaries,
+  including quality label, selected/parsed/note/evidence counts, report excerpt, key knowledge
+  page excerpts, and `wiki-vault/START_HERE.md`.
+- Added `litagent job run JOB_ID --json` so the OpenClaw bridge can safely run the job it just
+  created instead of accidentally consuming an older queued job.
+- Extended the QQBot native Autoresearch bridge with `/research result <job_id>`, automatic result
+  summary after `/research run-next`, and natural-language `/research <topic>` handling.
+- Updated natural-language `/research <topic>` to match the phone UX target: it now defaults to a
+  real background job with about 60 papers, immediately starts that job, and proactively sends the
+  phone-friendly knowledge summary when the run finishes. `--mock` remains available for smoke
+  tests and `--queue` creates a job without automatic execution.
+- Fixed the first phone-triggered real MLLM run failure path. The job stored the Chinese topic
+  correctly, but Python stdout was decoded by Node with the wrong Windows encoding, so phone
+  summaries showed mojibake; the QQBot bridge now sets `PYTHONIOENCODING=utf-8` and
+  `PYTHONUTF8=1` for `litagent` subprocesses.
+- Added a focused planner profile for `多模态大模型` / MLLM topics, using English queries such as
+  `multimodal large language model`, `multimodal foundation model`, `large vision-language model`,
+  and `MLLM`, plus targeted negative terms for traffic, recommender, RAG-only, brain-inspired,
+  cybersecurity-only, and other unrelated generic survey results.
 - Added a minimal Python package under `src/litagent`.
 - Added `litagent init WORKSPACE` to create the PRD workspace directories and starter config/prompt files.
 - Added `litagent plan "topic" --workspace WORKSPACE` with deterministic `research_plan.json` and `research_plan.md`.
@@ -492,6 +535,9 @@
 - Old Dev Container instances with `CODEX_HOME=/root/.codex` or a direct host bind at `/home/vscode/.codex` must be rebuilt.
 - Repository `.openclaw/` can diverge from the real `%USERPROFILE%\.openclaw`; when debugging the
   phone/QQ bot, always inspect the real home-state directory and gateway logs.
+- Headless Edge/Chrome PDF rendering can fail on Windows hosts with browser profile or crashpad
+  permission errors. This does not block mobile delivery because `mobile_brief.html` and
+  `mobile_brief.md` are always generated.
 - Sharing `.codex` into a container gives the container access to local Codex credentials/state; only use this with trusted Dockerfiles and trusted dependencies.
 - Local `.ruff_cache` and `.pytest_cache` paths are not writable in this environment; use `RUFF_CACHE_DIR=/tmp/litagent-ruff-cache` and `pytest -p no:cacheprovider` when needed.
 - Real API calls are implemented but not exercised by tests; tests use provider mapping units and deterministic mock mode.
@@ -519,13 +565,14 @@ research workspace quality:
 
 1. Verify the host OpenClaw/QQ bot configuration outside the `/app` container and append
    `openclaw/skills` to the actual host skill path.
-2. Promote the local QQBot `/research library` native bridge into a durable OpenClaw extension or
-   host patch. The local host now has narrow mappings for new/list/run-next/status/logs/library;
-   the phone-side mock loop has been exercised, so the next step is to make the patch durable
-   across OpenClaw extension updates and add a `/research result <job_id>` style summary endpoint.
-3. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before giving
-   OpenClaw larger real tasks. A next safe real check should be small, explicit, and user-triggered,
-   e.g. `/research new 多智能体文献调研自动化工具 --real --max-papers 10`.
+2. Promote the local QQBot native bridge into a durable OpenClaw extension or host patch. The local
+   host now has narrow mappings for new/list/run-next/status/logs/library/result/report and can
+   return long report files, so the next step is to make the patch durable across OpenClaw
+   extension updates.
+3. Stabilize `topic-run`、`sync-library` and `job` as local backend primitives before relying on
+   larger phone-triggered real tasks. The next safe check is the actual phone command
+   `/research 请你帮我调研一下多模态大模型领域` and then verifying that the background completion
+   message arrives without requiring `/research run-next` or `/research result`.
 4. Use `./demo-real-v3` as the evidence-quality regression baseline.
 5. Use `./demo-real-v4` as the source-diversity regression baseline.
 6. Validate the new AutoWiki-compatible export on existing workspaces before connecting it to a

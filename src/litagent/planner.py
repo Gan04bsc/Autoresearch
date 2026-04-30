@@ -8,6 +8,8 @@ from litagent.schema import current_year, extract_terms
 from litagent.workspace import create_workspace
 
 CHINESE_TERM_MAP = {
+    "多模态": ["multimodal", "vision-language", "multi-modal"],
+    "大模型": ["large model", "foundation model", "large language model"],
     "多智能体": ["multi-agent", "agentic"],
     "智能体": ["agent", "agentic"],
     "文献": ["literature"],
@@ -70,6 +72,115 @@ LITERATURE_AGENT_EXCLUDE_TERMS = [
     "reinforcement learning only",
 ]
 
+MULTIMODAL_LARGE_MODEL_TOPIC_MARKERS = [
+    "多模态大模型",
+    "多模态 大模型",
+    "多模态模型",
+    "多模态基础模型",
+    "视觉语言模型",
+    "multimodal large language model",
+    "multimodal large model",
+    "multimodal foundation model",
+    "large vision-language model",
+    "vision-language model",
+    "mllm",
+    "lvlm",
+]
+
+MULTIMODAL_LARGE_MODEL_FOCUSED_TERMS = [
+    "multimodal large language model",
+    "multimodal foundation model",
+    "large vision-language model",
+    "vision-language model",
+    "vision language model",
+    "large multimodal model",
+    "MLLM",
+    "LVLM",
+    "VLM",
+    "vision-language pretraining",
+    "multimodal instruction tuning",
+    "multimodal reasoning",
+    "visual question answering",
+    "image-text model",
+    "video-language model",
+    "multimodal benchmark",
+    "multimodal dataset",
+    "多模态大模型",
+    "多模态基础模型",
+    "视觉语言模型",
+]
+
+MULTIMODAL_LARGE_MODEL_HIGH_VALUE_PHRASES = [
+    "multimodal large language model",
+    "multimodal large language models",
+    "multimodal foundation model",
+    "multimodal foundation models",
+    "large vision-language model",
+    "large vision-language models",
+    "large multimodal model",
+    "large multimodal models",
+    "vision-language model",
+    "vision-language models",
+    "vision language model",
+    "vision language models",
+    "multimodal instruction tuning",
+    "multimodal reasoning",
+    "visual question answering",
+    "image-text pretraining",
+    "video-language model",
+    "MLLM",
+    "LVLM",
+]
+
+MULTIMODAL_LARGE_MODEL_EXCLUDE_TERMS = [
+    "traffic prediction",
+    "urban traffic",
+    "recommender systems",
+    "recommendation system",
+    "brain-inspired computing",
+    "insider threat",
+    "cybersecurity-only",
+    "materials science only",
+    "retrieval-augmented generation only",
+    "RAG-only",
+    "multi-agent only",
+    "federated learning",
+    "autonomous vehicles",
+    "intersection navigation",
+    "reinforcement learning only",
+    "incidental vocabulary acquisition",
+    "water research",
+]
+
+MULTIMODAL_LARGE_MODEL_COVERAGE_TARGETS = {
+    "survey and taxonomy": [
+        "multimodal large language model",
+        "multimodal foundation model",
+        "large vision-language model",
+        "vision-language model",
+    ],
+    "architecture and training": [
+        "vision encoder",
+        "cross-modal",
+        "alignment",
+        "instruction tuning",
+        "multimodal pretraining",
+    ],
+    "benchmarks and datasets": [
+        "benchmark",
+        "dataset",
+        "visual question answering",
+        "multimodal reasoning",
+    ],
+    "applications and limitations": [
+        "hallucination",
+        "safety",
+        "evaluation",
+        "video",
+        "document",
+    ],
+}
+
 
 def translate_topic_terms(topic: str) -> list[str]:
     terms = extract_terms(topic, limit=8)
@@ -93,9 +204,16 @@ def is_literature_agent_topic(topic: str) -> bool:
     return any(marker.lower() in lowered for marker in LITERATURE_AGENT_TOPIC_MARKERS)
 
 
+def is_multimodal_large_model_topic(topic: str) -> bool:
+    lowered = topic.lower()
+    return any(marker.lower() in lowered for marker in MULTIMODAL_LARGE_MODEL_TOPIC_MARKERS)
+
+
 def build_seed_query(topic: str) -> str:
     if is_literature_agent_topic(topic):
         return "LLM agents automated literature review citation-aware synthesis"
+    if is_multimodal_large_model_topic(topic):
+        return "multimodal large language model vision-language model multimodal foundation model"
     terms = translate_topic_terms(topic)
     if len(terms) == 1 and terms[0] == topic:
         return topic
@@ -121,6 +239,29 @@ def build_search_queries(topic: str, seed_query: str) -> dict[str, list[str]]:
                 "systematic review automation agentic research assistant",
                 "scientific discovery agent research workflow automation",
                 "多智能体 文献综述 自动化综述 科研助手 论文阅读智能体",
+            ],
+        }
+    if is_multimodal_large_model_topic(topic):
+        return {
+            "arxiv": [
+                'all:"multimodal large language model"',
+                'all:"multimodal foundation model"',
+                '(ti:"vision-language model" OR abs:"large vision-language model")',
+                '(ti:"multimodal LLM" OR abs:"MLLM")',
+            ],
+            "semantic_scholar": [
+                "multimodal large language models survey benchmark",
+                "large vision-language models multimodal foundation models",
+                "multimodal LLM MLLM vision-language model dataset benchmark",
+                "vision language models instruction tuning multimodal reasoning",
+                "多模态大模型 多模态基础模型 视觉语言模型 评测 数据集",
+            ],
+            "openalex": [
+                "multimodal large language models survey benchmark",
+                "large vision-language models multimodal foundation models",
+                "multimodal LLM MLLM vision-language model dataset benchmark",
+                "vision language models instruction tuning multimodal reasoning",
+                "多模态大模型 多模态基础模型 视觉语言模型 评测 数据集",
             ],
         }
     return {
@@ -153,7 +294,15 @@ def create_research_plan(
         raise ValueError(msg)
 
     seed_query = build_seed_query(topic)
-    focused_terms = LITERATURE_AGENT_FOCUSED_TERMS if is_literature_agent_topic(topic) else []
+    focused_terms: list[str] = []
+    high_value_phrases: list[str] = []
+    coverage_targets: dict[str, list[str]] | None = None
+    if is_literature_agent_topic(topic):
+        focused_terms.extend(LITERATURE_AGENT_FOCUSED_TERMS)
+    if is_multimodal_large_model_topic(topic):
+        focused_terms.extend(MULTIMODAL_LARGE_MODEL_FOCUSED_TERMS)
+        high_value_phrases.extend(MULTIMODAL_LARGE_MODEL_HIGH_VALUE_PHRASES)
+        coverage_targets = MULTIMODAL_LARGE_MODEL_COVERAGE_TARGETS
     include_keywords = [*focused_terms, *translate_topic_terms(topic), *GENERIC_RESEARCH_TERMS]
     include_keywords = list(dict.fromkeys(include_keywords))
     exclude_keywords = [
@@ -163,11 +312,13 @@ def create_research_plan(
     ]
     if is_literature_agent_topic(topic):
         exclude_keywords.extend(LITERATURE_AGENT_EXCLUDE_TERMS)
+    if is_multimodal_large_model_topic(topic):
+        exclude_keywords.extend(MULTIMODAL_LARGE_MODEL_EXCLUDE_TERMS)
     exclude_keywords = list(dict.fromkeys(exclude_keywords))
     to_year = to_year or current_year()
     from_year = from_year or max(2018, to_year - 8)
 
-    return {
+    plan = {
         "topic": topic,
         "goal": f"Build a traceable literature workbench for: {topic}",
         "core_questions": [
@@ -195,6 +346,11 @@ def create_research_plan(
             "+ 0.05 open-pdf availability; deduplicate by DOI, arXiv ID, then title similarity."
         ),
     }
+    if high_value_phrases:
+        plan["high_value_phrases"] = list(dict.fromkeys(high_value_phrases))
+    if coverage_targets:
+        plan["coverage_targets"] = coverage_targets
+    return plan
 
 
 def research_plan_markdown(plan: dict[str, Any]) -> str:
